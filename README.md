@@ -26,7 +26,7 @@ Testes: `python manage.py test boxes`
 | `Sede`    | nome (único), endereco                                                 |
 | `Cliente` | nome                                                                   |
 | `Box`     | sede, tamanho, valor, cliente (quem aluga), anexo_pagamento (arquivo) |
-| `Funcionario` | nome, cpf (único, validado), sede                                  |
+| `Funcionario` | usuario (login), nome, cpf (único, validado), sede               |
 
 - **Sede 1 → N Box**: uma sede tem muitos boxes
 - **Cliente 1 → N Box**: um cliente pode alugar muitos boxes
@@ -41,14 +41,26 @@ Regras (validadas na API **e** no banco):
 
 ## Endpoints
 
-Exigem login (sessão em `/api-auth/login/`), exceto o cadastro de funcionário.
+## Login de funcionários
+
+1. O funcionário se cadastra em `POST /api/auth/registro/` com `nome`, `cpf`, `sede`, `senha` e `confirmar_senha`.
+2. A conta nasce **aguardando aprovação**. Um administrador aprova em `/admin/` → Funcionários →
+   selecionar → ação "Aprovar acesso".
+3. Login em `POST /api/auth/login/` com `cpf` e `senha`, que devolve um `token`.
+4. Nas demais chamadas, envie o header `Authorization: Token <token>`.
+5. `GET /api/auth/eu/` mostra quem está logado; `POST /api/auth/logout/` invalida o token.
+
+A senha passa pelas regras de senha do Django (mínimo 8 caracteres, não pode ser comum,
+só numérica ou parecida com o nome/CPF).
+
+Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 
 | Rota              | Descrição                                                                 |
 |-------------------|---------------------------------------------------------------------------|
 | `/api/sedes/`     | CRUD de sedes. Inclui `numero_de_box`, `alugados`, `nao_alugados` (calculados) |
 | `/api/clientes/`  | CRUD de clientes                                                          |
 | `/api/boxes/`     | CRUD de boxes. Filtros: `?sede=`, `?cliente=`, `?alugado=true\|false`     |
-| `/api/funcionarios/` | `POST` aberto: o funcionário se registra com nome, CPF e sede. Listar/editar exige login. Filtro: `?sede=` |
+| `/api/funcionarios/` | Consulta de funcionários (somente leitura). Filtro: `?sede=` |
 | `/api/funcionarios/sedes/` | Aberto: lista as sedes para o formulário de cadastro |
 | `/admin/`         | Painel administrativo do Django                                           |
 

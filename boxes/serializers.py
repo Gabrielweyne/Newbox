@@ -52,10 +52,11 @@ class SedeOpcaoSerializer(serializers.ModelSerializer):
 
 class FuncionarioSerializer(serializers.ModelSerializer):
     sede_nome = serializers.CharField(source="sede.nome", read_only=True)
+    aprovado = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Funcionario
-        fields = ["id", "nome", "cpf", "sede", "sede_nome"]
+        fields = ["id", "nome", "cpf", "sede", "sede_nome", "aprovado"]
         extra_kwargs = {"cpf": {"max_length": 14}}  # aceita "000.000.000-00"
 
     def validate_cpf(self, valor):

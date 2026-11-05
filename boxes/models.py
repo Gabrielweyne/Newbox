@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
@@ -102,8 +103,16 @@ class Box(models.Model):
 
 
 class Funcionario(models.Model):
-    """Funcionário da Newbox, vinculado à sede onde trabalha."""
+    """
+    Funcionário da Newbox, vinculado à sede onde trabalha.
 
+    O login é feito com CPF e senha: cada funcionário tem um usuário do Django
+    (username = CPF). A conta nasce inativa e precisa ser aprovada no /admin/.
+    """
+
+    usuario = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="funcionario"
+    )
     nome = models.CharField(max_length=150)
     cpf = models.CharField(
         "CPF", max_length=11, unique=True, validators=[validar_cpf],
@@ -123,6 +132,10 @@ class Funcionario(models.Model):
                 condition=Q(cpf__regex=r"^[0-9]{11}$"), name="funcionario_cpf_11_digitos"
             ),
         ]
+
+    @property
+    def aprovado(self):
+        return self.usuario.is_active
 
     def __str__(self):
         return f"{self.nome} ({self.sede})"

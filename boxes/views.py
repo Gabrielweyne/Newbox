@@ -61,25 +61,23 @@ class BoxViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class FuncionarioViewSet(viewsets.ModelViewSet):
+class FuncionarioViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    Cadastro de funcionários.
+    Consulta de funcionários (exige login). Filtro opcional: ?sede=<id>
+    O cadastro é feito em /api/auth/registro/.
 
-    POST /api/funcionarios/        -> aberto: o próprio funcionário se registra
-    GET  /api/funcionarios/sedes/  -> aberto: sedes para escolher no formulário
-    Demais operações               -> exigem login
-    Filtro opcional: ?sede=<id>
+    GET /api/funcionarios/sedes/ -> aberto: sedes para o formulário de cadastro
     """
 
     serializer_class = FuncionarioSerializer
 
     def get_permissions(self):
-        if self.action in ("create", "sedes"):
+        if self.action == "sedes":
             return [permissions.AllowAny()]
         return super().get_permissions()
 
     def get_queryset(self):
-        qs = Funcionario.objects.select_related("sede")
+        qs = Funcionario.objects.select_related("sede", "usuario")
         if sede := self.request.query_params.get("sede"):
             qs = qs.filter(sede_id=sede)
         return qs
