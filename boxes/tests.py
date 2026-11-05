@@ -422,3 +422,54 @@ class EsqueciSenhaTests(APITestCase):
         self.assertEqual(r.status_code, 302)
         self.usuario.refresh_from_db()
         self.assertEqual(self.usuario.email, "nova@exemplo.com")
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
+class RecursosDoSiteTests(APITestCase):
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.admin = User.objects.create_user("chefe", is_staff=True)
+        self.cliente_x = Cliente.objects.create(nome="Carlos Souza")
+        Cliente.objects.create(nome="Maria")
+        self.box = Box.objects.create(sede=self.coco, tamanho="P", valor=10,
+                                      cliente=self.cliente_x, anexo_pagamento="c/x.pdf")
+        usuario = User.objects.create_user("52998224725", is_active=False)
+        self.pendente = Funcionario.objects.create(
+            usuario=usuario, nome="Ana", cpf="52998224725", sede=self.coco)
+        self.client.force_authenticate(self.admin)
+
+    def test_liberar_box(self):
+        r = self.client.post(f"/api/boxes/{self.box.id}/liberar/")
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.data["alugado"])
+        self.assertIsNone(r.data["anexo_pagamento"])
+
+    def test_box_traz_nomes(self):
+        r = self.client.get(f"/api/boxes/{self.box.id}/")
+        self.assertEqual((r.data["sede_nome"], r.data["cliente_nome"]), ("Cocó", "Carlos Souza"))
+
+    def test_busca_de_clientes(self):
+        r = self.client.get("/api/clientes/?busca=souza")
+        self.assertEqual([c["nome"] for c in r.data["results"]], ["Carlos Souza"])
+        self.assertEqual(r.data["results"][0]["total_boxes"], 1)
+
+    def test_admin_aprova_e_bloqueia(self):
+        r = self.client.get("/api/funcionarios/?aprovado=false")
+        self.assertEqual([f["nome"] for f in r.data["results"]], ["Ana"])
+        r = self.client.post(f"/api/funcionarios/{self.pendente.id}/aprovar/")
+        self.assertTrue(r.data["aprovado"])
+        r = self.client.post(f"/api/funcionarios/{self.pendente.id}/bloquear/")
+        self.assertFalse(r.data["aprovado"])
+
+    def test_funcionario_nao_aprova(self):
+        colega = User.objects.create_user("11144477735")
+        Funcionario.objects.create(usuario=colega, nome="Beto", cpf="11144477735", sede=self.coco)
+        self.client.force_authenticate(colega)
+        r = self.client.post(f"/api/funcionarios/{self.pendente.id}/aprovar/")
+        self.assertEqual(r.status_code, 403)
+
+    def test_page_size(self):
+        for i in range(60):
+            Box.objects.create(sede=self.coco, tamanho="P", valor=1)
+        self.assertEqual(len(self.client.get("/api/boxes/").data["results"]), 50)
+        self.assertEqual(len(self.client.get("/api/boxes/?page_size=500").data["results"]), 61)

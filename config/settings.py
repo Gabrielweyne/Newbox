@@ -151,7 +151,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "boxes.permissions.EhAdminOuFuncionario",
     ],
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_PAGINATION_CLASS": "boxes.paginacao.Paginacao",
     "PAGE_SIZE": 50,
     "DEFAULT_THROTTLE_RATES": {"login": "10/min", "senha": "5/min"},
 }

@@ -17,17 +17,24 @@ class SedeSerializer(serializers.ModelSerializer):
 
 
 class ClienteSerializer(serializers.ModelSerializer):
+    total_boxes = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = Cliente
-        fields = ["id", "nome"]
+        fields = ["id", "nome", "total_boxes"]
 
 
 class BoxSerializer(serializers.ModelSerializer):
     alugado = serializers.BooleanField(read_only=True)
+    sede_nome = serializers.CharField(source="sede.nome", read_only=True)
+    cliente_nome = serializers.CharField(source="cliente.nome", read_only=True, default=None)
 
     class Meta:
         model = Box
-        fields = ["id", "sede", "tamanho", "valor", "cliente", "anexo_pagamento", "alugado"]
+        fields = [
+            "id", "sede", "sede_nome", "tamanho", "valor",
+            "cliente", "cliente_nome", "anexo_pagamento", "alugado",
+        ]
         # Funcionário pode omitir a sede: usa a dele automaticamente
         extra_kwargs = {"sede": {"required": False}}
 
