@@ -91,6 +91,8 @@ class LoginView(APIView):
 class LogoutView(APIView):
     """POST com o token -> invalida o token."""
 
+    permission_classes = [permissions.IsAuthenticated]
+
     def post(self, request):
         Token.objects.filter(user=request.user).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -98,6 +100,8 @@ class LogoutView(APIView):
 
 class EuView(APIView):
     """GET -> dados de quem está logado."""
+
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         return Response(dados_do_usuario(request.user))

@@ -10,7 +10,7 @@ from .models import Box, Cliente, Funcionario, Sede
 @override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
 class NewboxApiTests(APITestCase):
     def setUp(self):
-        self.client.force_authenticate(User.objects.create_user("admin"))
+        self.client.force_authenticate(User.objects.create_user("admin", is_staff=True))
         self.sede = Sede.objects.create(nome="Newbox Centro", endereco="Rua A, 100")
         self.maria = Cliente.objects.create(nome="Maria")
 
@@ -143,6 +143,91 @@ class FuncionarioTests(APITestCase):
     def test_listar_exige_login(self):
         self.assertEqual(self.client.get("/api/funcionarios/").status_code, 401)
         self.registrar()
-        self.client.force_authenticate(User.objects.create_user("gerente"))
+        self.client.force_authenticate(User.objects.create_user("gerente", is_staff=True))
         r = self.client.get("/api/funcionarios/")
         self.assertEqual(r.data["count"], 1)
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
+class AcessoPorSedeTests(APITestCase):
+    """Cada funcionário só mexe na própria sede; o admin mexe em todas."""
+
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.cambeba = Sede.objects.get(nome="Cambeba")
+        self.ana = self.funcionario("Ana", "52998224725", self.coco)
+        self.beto = self.funcionario("Beto", "11144477735", self.cambeba)
+        self.cliente_x = Cliente.objects.create(nome="Cliente X")
+        self.box_coco = Box.objects.create(sede=self.coco, tamanho="P", valor=100)
+        self.box_cambeba = Box.objects.create(sede=self.cambeba, tamanho="G", valor=300)
+
+    def funcionario(self, nome, cpf, sede):
+        usuario = User.objects.create_user(cpf, password="x")
+        Funcionario.objects.create(usuario=usuario, nome=nome, cpf=cpf, sede=sede)
+        return usuario
+
+    def ids(self, url):
+        return sorted(item["id"] for item in self.client.get(url).data["results"])
+
+    def test_funcionario_ve_so_a_propria_sede(self):
+        self.client.force_authenticate(self.ana)
+        self.assertEqual(self.ids("/api/boxes/"), [self.box_coco.id])
+        self.assertEqual(self.ids("/api/sedes/"), [self.coco.id])
+        self.assertEqual([f["nome"] for f in self.client.get("/api/funcionarios/").data["results"]], ["Ana"])
+        # Mesmo pedindo a outra sede pelo filtro, não vem nada
+        self.assertEqual(self.ids(f"/api/boxes/?sede={self.cambeba.id}"), [])
+
+    def test_funcionario_nao_acessa_box_de_outra_sede(self):
+        self.client.force_authenticate(self.ana)
+        url = f"/api/boxes/{self.box_cambeba.id}/"
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(self.client.patch(url, {"valor": "1"}).status_code, 404)
+        self.assertEqual(self.client.delete(url).status_code, 404)
+        self.assertEqual(self.client.get(f"/api/sedes/{self.cambeba.id}/").status_code, 404)
+
+    def test_funcionario_cria_box_na_propria_sede(self):
+        self.client.force_authenticate(self.ana)
+        r = self.client.post("/api/boxes/", {"tamanho": "M", "valor": "200"})
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data["sede"], self.coco.id)
+        r = self.client.post("/api/boxes/", {"sede": self.cambeba.id, "tamanho": "M", "valor": "200"})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("sede", r.data)
+
+    def test_funcionario_nao_move_box_para_outra_sede(self):
+        self.client.force_authenticate(self.ana)
+        r = self.client.patch(f"/api/boxes/{self.box_coco.id}/", {"sede": self.cambeba.id})
+        self.assertEqual(r.status_code, 400)
+        self.box_coco.refresh_from_db()
+        self.assertEqual(self.box_coco.sede, self.coco)
+
+    def test_funcionario_aluga_box_da_sede(self):
+        self.client.force_authenticate(self.ana)
+        r = self.client.patch(f"/api/boxes/{self.box_coco.id}/", {
+            "cliente": self.cliente_x.id,
+            "anexo_pagamento": SimpleUploadedFile("c.pdf", b"%PDF", content_type="application/pdf"),
+        }, format="multipart")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertTrue(r.data["alugado"])
+
+    def test_funcionario_nao_altera_cadastro_de_sede(self):
+        self.client.force_authenticate(self.ana)
+        r = self.client.patch(f"/api/sedes/{self.coco.id}/", {"endereco": "Outro"})
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.client.post("/api/sedes/", {"nome": "Nova", "endereco": "X"}).status_code, 403)
+
+    def test_clientes_sao_compartilhados(self):
+        self.client.force_authenticate(self.beto)
+        self.assertEqual(self.client.get(f"/api/clientes/{self.cliente_x.id}/").status_code, 200)
+
+    def test_admin_ve_tudo(self):
+        self.client.force_authenticate(User.objects.create_user("chefe", is_staff=True))
+        self.assertEqual(self.ids("/api/boxes/"), sorted([self.box_coco.id, self.box_cambeba.id]))
+        self.assertEqual(len(self.ids("/api/sedes/")), 2)
+        r = self.client.post("/api/boxes/", {"tamanho": "M", "valor": "1"})
+        self.assertIn("sede", r.data)  # admin precisa informar a sede
+
+    def test_usuario_sem_vinculo_nao_acessa(self):
+        self.client.force_authenticate(User.objects.create_user("qualquer"))
+        self.assertEqual(self.client.get("/api/boxes/").status_code, 403)
+        self.assertEqual(self.client.get("/api/clientes/").status_code, 403)

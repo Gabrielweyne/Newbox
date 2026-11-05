@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import Box, Cliente, Funcionario, Sede
+from .permissions import EhAdminOuFuncionario, SomenteAdminAltera, sede_do_usuario
 from .serializers import (
     BoxSerializer,
     ClienteSerializer,
@@ -11,6 +12,16 @@ from .serializers import (
     SedeOpcaoSerializer,
     SedeSerializer,
 )
+
+
+class FiltraPorSedeMixin:
+    """Funcionário só enxerga registros da própria sede (admin vê todos)."""
+
+    campo_sede = "sede_id"
+
+    def filtrar_por_sede(self, qs):
+        sede = sede_do_usuario(self.request.user)
+        return qs if sede is None else qs.filter(**{self.campo_sede: sede})
 
 
 class ProtegidoContraExclusaoMixin:
@@ -26,31 +37,38 @@ class ProtegidoContraExclusaoMixin:
             )
 
 
-class SedeViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
+class SedeViewSet(FiltraPorSedeMixin, ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
+    """Funcionário vê só a própria sede; só administrador cria/edita/exclui."""
+
     serializer_class = SedeSerializer
+    permission_classes = [EhAdminOuFuncionario, SomenteAdminAltera]
+    campo_sede = "id"
 
     def get_queryset(self):
-        return Sede.objects.annotate(
+        return self.filtrar_por_sede(Sede.objects.all()).annotate(
             numero_de_box=Count("boxes"),
             alugados=Count("boxes", filter=Q(boxes__cliente__isnull=False)),
             nao_alugados=Count("boxes", filter=Q(boxes__cliente__isnull=True)),
-        )
+        ).order_by("nome")
 
 
 class ClienteViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
+    """Clientes são compartilhados entre as sedes (um cliente pode alugar nas duas)."""
+
     queryset = Cliente.objects.all()
     serializer_class = ClienteSerializer
 
 
-class BoxViewSet(viewsets.ModelViewSet):
+class BoxViewSet(FiltraPorSedeMixin, viewsets.ModelViewSet):
     """
+    Funcionário só vê e altera boxes da própria sede.
     Filtros opcionais: ?sede=<id>, ?cliente=<id>, ?alugado=true|false
     """
 
     serializer_class = BoxSerializer
 
     def get_queryset(self):
-        qs = Box.objects.select_related("sede", "cliente")
+        qs = self.filtrar_por_sede(Box.objects.select_related("sede", "cliente"))
         params = self.request.query_params
         if sede := params.get("sede"):
             qs = qs.filter(sede_id=sede)
@@ -61,9 +79,10 @@ class BoxViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class FuncionarioViewSet(viewsets.ReadOnlyModelViewSet):
+class FuncionarioViewSet(FiltraPorSedeMixin, viewsets.ReadOnlyModelViewSet):
     """
-    Consulta de funcionários (exige login). Filtro opcional: ?sede=<id>
+    Consulta de funcionários (funcionário vê só os colegas da própria sede).
+    Filtro opcional: ?sede=<id>
     O cadastro é feito em /api/auth/registro/.
 
     GET /api/funcionarios/sedes/ -> aberto: sedes para o formulário de cadastro
@@ -77,7 +96,7 @@ class FuncionarioViewSet(viewsets.ReadOnlyModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        qs = Funcionario.objects.select_related("sede", "usuario")
+        qs = self.filtrar_por_sede(Funcionario.objects.select_related("sede", "usuario"))
         if sede := self.request.query_params.get("sede"):
             qs = qs.filter(sede_id=sede)
         return qs

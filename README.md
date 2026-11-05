@@ -53,6 +53,16 @@ Regras (validadas na API **e** no banco):
 A senha passa pelas regras de senha do Django (mínimo 8 caracteres, não pode ser comum,
 só numérica ou parecida com o nome/CPF).
 
+## Acesso por sede
+
+| Quem | O que pode |
+|------|------------|
+| Administrador (`is_staff`) | Tudo, nas duas sedes |
+| Funcionário | Só boxes, dados e colegas da **própria sede**. Ao criar box, a sede dele é usada automaticamente. Não pode mover box para outra sede nem alterar o cadastro da sede |
+| Outro usuário logado | Nada |
+
+Clientes são **compartilhados** entre as sedes (o mesmo cliente pode alugar no Cocó e no Cambeba).
+
 Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 
 | Rota              | Descrição                                                                 |
