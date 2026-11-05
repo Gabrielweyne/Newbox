@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
 from django.test import override_settings
@@ -121,25 +122,6 @@ class FuncionarioTests(APITestCase):
         self.assertIn("senha", self.registrar(senha="123", confirmar_senha="123").data)
         self.assertFalse(Funcionario.objects.exists())
 
-    def test_login_antes_da_aprovacao(self):
-        self.registrar()
-        r = self.login()
-        self.assertEqual(r.status_code, 403)
-        self.assertIn("aprovação", r.data["detail"])
-
-    def test_login_logout_apos_aprovacao(self):
-        self.registrar()
-        self.aprovar()
-        self.assertEqual(self.login(senha="errada").status_code, 400)
-        r = self.login()
-        self.assertEqual(r.status_code, 200, r.data)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {r.data['token']}")
-        eu = self.client.get("/api/auth/eu/")
-        self.assertEqual(eu.data["funcionario"]["nome"], "Ana Lima")
-        self.assertEqual(self.client.get("/api/boxes/").status_code, 200)
-        self.assertEqual(self.client.post("/api/auth/logout/").status_code, 204)
-        self.assertEqual(self.client.get("/api/boxes/").status_code, 401)
-
     def test_listar_exige_login(self):
         self.assertEqual(self.client.get("/api/funcionarios/").status_code, 401)
         self.registrar()
@@ -231,3 +213,98 @@ class AcessoPorSedeTests(APITestCase):
         self.client.force_authenticate(User.objects.create_user("qualquer"))
         self.assertEqual(self.client.get("/api/boxes/").status_code, 403)
         self.assertEqual(self.client.get("/api/clientes/").status_code, 403)
+
+
+class AutenticacaoJWTTests(APITestCase):
+    CPF = "529.982.247-25"
+    SENHA = "Caixa#Forte2026"
+
+    def setUp(self):
+        cache.clear()  # zera o limite de tentativas de login
+        self.cambeba = Sede.objects.get(nome="Cambeba")
+        self.usuario = User.objects.create_user("52998224725", password=self.SENHA)
+        Funcionario.objects.create(
+            usuario=self.usuario, nome="Ana Lima", cpf="52998224725", sede=self.cambeba
+        )
+        Box.objects.create(sede=self.cambeba, tamanho="P", valor=10)
+
+    def login(self, cpf=None, senha=None):
+        return self.client.post("/api/auth/login/", {"cpf": cpf or self.CPF, "senha": senha or self.SENHA})
+
+    def usar(self, access):
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+
+    def test_login_devolve_tokens_e_sede(self):
+        r = self.login()
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(set(r.data) >= {"access", "refresh", "sede", "funcionario"}, True)
+        self.assertEqual(r.data["sede"], {"id": self.cambeba.id, "nome": "Cambeba"})
+        self.usar(r.data["access"])
+        boxes = self.client.get("/api/boxes/").data["results"]
+        self.assertEqual({b["sede"] for b in boxes}, {self.cambeba.id})
+
+    def test_token_tem_dados_da_sede(self):
+        from rest_framework_simplejwt.tokens import AccessToken
+        token = AccessToken(self.login().data["access"])
+        self.assertEqual(token["sede_nome"], "Cambeba")
+        self.assertEqual(token["cpf"], "52998224725")
+
+    def test_credenciais_erradas(self):
+        self.assertEqual(self.login(senha="errada").status_code, 401)
+        self.assertEqual(self.login(cpf="111.444.777-35").status_code, 401)
+
+    def test_conta_pendente(self):
+        self.usuario.is_active = False
+        self.usuario.save()
+        r = self.login()
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("aprovação", r.data["detail"])
+
+    def test_sem_token_ou_token_invalido(self):
+        self.assertEqual(self.client.get("/api/boxes/").status_code, 401)
+        self.usar("lixo")
+        self.assertEqual(self.client.get("/api/boxes/").status_code, 401)
+
+    def test_refresh_rotaciona_e_invalida_o_antigo(self):
+        refresh = self.login().data["refresh"]
+        r = self.client.post("/api/auth/token/refresh/", {"refresh": refresh})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("access", r.data)
+        self.assertNotEqual(r.data["refresh"], refresh)
+        again = self.client.post("/api/auth/token/refresh/", {"refresh": refresh})
+        self.assertEqual(again.status_code, 401)
+
+    def test_logout_invalida_refresh(self):
+        tokens = self.login().data
+        self.usar(tokens["access"])
+        self.assertEqual(self.client.post("/api/auth/logout/", {"refresh": tokens["refresh"]}).status_code, 204)
+        r = self.client.post("/api/auth/token/refresh/", {"refresh": tokens["refresh"]})
+        self.assertEqual(r.status_code, 401)
+
+    def test_bloqueado_perde_acesso(self):
+        tokens = self.login().data
+        self.usuario.is_active = False
+        self.usuario.save()
+        self.usar(tokens["access"])
+        self.assertEqual(self.client.get("/api/boxes/").status_code, 401)
+        self.client.credentials()
+        r = self.client.post("/api/auth/token/refresh/", {"refresh": tokens["refresh"]})
+        self.assertEqual(r.status_code, 401)
+
+    def test_trocar_senha_invalida_tokens(self):
+        tokens = self.login().data
+        self.usuario.set_password("Nova#Senha2026")
+        self.usuario.save()
+        self.usar(tokens["access"])
+        self.assertEqual(self.client.get("/api/boxes/").status_code, 401)
+
+    def test_limite_de_tentativas(self):
+        for _ in range(10):
+            self.login(senha="errada")
+        self.assertEqual(self.login().status_code, 429)
+
+    def test_eu(self):
+        self.usar(self.login().data["access"])
+        r = self.client.get("/api/auth/eu/")
+        self.assertEqual(r.data["sede"]["nome"], "Cambeba")
+        self.assertFalse(r.data["admin"])

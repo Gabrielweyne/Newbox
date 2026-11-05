@@ -15,7 +15,7 @@ python manage.py runserver
 ```
 
 Configuração por variáveis de ambiente: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`,
-`DJANGO_SECRET_KEY`, `DJANGO_DEBUG` (`1`/`0`), `DJANGO_ALLOWED_HOSTS` (separados por vírgula).
+`DJANGO_SECRET_KEY` (também assina os JWT), `DJANGO_DEBUG` (`1`/`0`), `DJANGO_ALLOWED_HOSTS` (separados por vírgula).
 
 Testes: `python manage.py test boxes`
 
@@ -41,14 +41,28 @@ Regras (validadas na API **e** no banco):
 
 ## Endpoints
 
-## Login de funcionários
+## Autenticação (JWT)
 
 1. O funcionário se cadastra em `POST /api/auth/registro/` com `nome`, `cpf`, `sede`, `senha` e `confirmar_senha`.
 2. A conta nasce **aguardando aprovação**. Um administrador aprova em `/admin/` → Funcionários →
    selecionar → ação "Aprovar acesso".
-3. Login em `POST /api/auth/login/` com `cpf` e `senha`, que devolve um `token`.
-4. Nas demais chamadas, envie o header `Authorization: Token <token>`.
-5. `GET /api/auth/eu/` mostra quem está logado; `POST /api/auth/logout/` invalida o token.
+3. Login em `POST /api/auth/login/` com `cpf` e `senha`. A resposta traz:
+   - `access`: token JWT de acesso (vale 30 min)
+   - `refresh`: token para renovar o acesso (vale 1 dia)
+   - `sede`: `{id, nome}` da sede do funcionário, para o site direcioná-lo (`null` para admin)
+   - `funcionario`: dados do funcionário
+4. Nas demais chamadas envie o header `Authorization: Bearer <access>`.
+5. Quando o `access` expirar: `POST /api/auth/token/refresh/` com `{refresh}` devolve um novo par.
+   O refresh antigo deixa de valer (rotação).
+6. `POST /api/auth/logout/` com `{refresh}` invalida o refresh token.
+7. `GET /api/auth/eu/` mostra quem está logado e a sede.
+
+Segurança:
+- Login limitado a 10 tentativas por minuto por IP.
+- Bloquear o funcionário no admin ou trocar a senha dele derruba os tokens já emitidos.
+- Durações configuráveis por `JWT_ACCESS_MINUTOS` e `JWT_REFRESH_DIAS`.
+- O token carrega `nome`, `sede_id` e `sede_nome` só para o front-end exibir; as
+  permissões sempre consultam a sede no banco.
 
 A senha passa pelas regras de senha do Django (mínimo 8 caracteres, não pode ser comum,
 só numérica ou parecida com o nome/CPF).
