@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from .auth import EuView, LoginView, LogoutView, RegistroView
+from .senha import EsqueciSenhaView, RedefinirSenhaView
 
 from .views import BoxViewSet, ClienteViewSet, FuncionarioViewSet, SedeViewSet
 
@@ -18,4 +19,6 @@ urlpatterns = [
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/eu/", EuView.as_view(), name="eu"),
+    path("auth/senha/esqueci/", EsqueciSenhaView.as_view(), name="senha_esqueci"),
+    path("auth/senha/redefinir/", RedefinirSenhaView.as_view(), name="senha_redefinir"),
 ] + router.urls

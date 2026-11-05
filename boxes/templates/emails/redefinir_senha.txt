@@ -1,0 +1,12 @@
+{% autoescape off %}Olá{% if nome %}, {{ nome }}{% endif %}!
+
+Recebemos um pedido para redefinir a sua senha de acesso à Newbox.
+
+Para criar uma nova senha, abra o link abaixo:
+{{ link }}
+
+O link vale por {{ validade_horas }} hora{{ validade_horas|pluralize }} e só pode ser usado uma vez.
+
+Se não foi você quem pediu, ignore este e-mail. Sua senha atual continua valendo.
+
+Equipe Newbox{% endautoescape %}

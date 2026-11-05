@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-br">
+  <body style="margin:0;padding:24px;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#18181b;">
+    <table role="presentation" width="100%" style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:8px;">
+      <tr>
+        <td style="padding:32px;">
+          <h1 style="margin:0 0 16px;font-size:20px;">Redefinição de senha</h1>
+          <p style="margin:0 0 16px;line-height:1.5;">Olá{% if nome %}, {{ nome }}{% endif %}!</p>
+          <p style="margin:0 0 24px;line-height:1.5;">
+            Recebemos um pedido para redefinir a sua senha de acesso à Newbox.
+          </p>
+          <p style="margin:0 0 24px;">
+            <a href="{{ link }}"
+               style="display:inline-block;padding:12px 20px;background:#18181b;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;">
+              Criar nova senha
+            </a>
+          </p>
+          <p style="margin:0 0 16px;font-size:14px;color:#52525b;line-height:1.5;">
+            O link vale por {{ validade_horas }} hora{{ validade_horas|pluralize }} e só pode ser usado uma vez.
+            Se não foi você quem pediu, ignore este e-mail. Sua senha atual continua valendo.
+          </p>
+          <p style="margin:0;font-size:12px;color:#71717a;word-break:break-all;">
+            Se o botão não funcionar, copie este endereço no navegador:<br>{{ link }}
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

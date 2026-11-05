@@ -25,6 +25,8 @@ User = get_user_model()
 
 
 class RegistroSerializer(FuncionarioSerializer):
+    # Guardado na conta de login; usado para recuperar a senha
+    email = serializers.EmailField(source="usuario.email", max_length=254)
     senha = serializers.CharField(write_only=True, style={"input_type": "password"})
     confirmar_senha = serializers.CharField(write_only=True, style={"input_type": "password"})
 
@@ -37,10 +39,18 @@ class RegistroSerializer(FuncionarioSerializer):
             raise serializers.ValidationError("Já existe funcionário com este CPF.")
         return cpf
 
+    def validate_email(self, valor):
+        email = valor.strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError("Já existe funcionário com este e-mail.")
+        return email
+
     def validate(self, attrs):
         if attrs["senha"] != attrs["confirmar_senha"]:
             raise serializers.ValidationError({"confirmar_senha": "As senhas não conferem."})
-        usuario_provisorio = User(username=attrs["cpf"], first_name=attrs["nome"])
+        usuario_provisorio = User(
+            username=attrs["cpf"], first_name=attrs["nome"], email=attrs["usuario"]["email"]
+        )
         try:
             password_validation.validate_password(attrs["senha"], usuario_provisorio)
         except Exception as erro:  # django.core.exceptions.ValidationError
@@ -51,8 +61,9 @@ class RegistroSerializer(FuncionarioSerializer):
     def create(self, dados):
         senha = dados.pop("senha")
         dados.pop("confirmar_senha")
+        email = dados.pop("usuario")["email"]
         usuario = User.objects.create_user(
-            username=dados["cpf"], password=senha,
+            username=dados["cpf"], password=senha, email=email,
             first_name=dados["nome"][:150], is_active=False,
         )
         return Funcionario.objects.create(usuario=usuario, **dados)

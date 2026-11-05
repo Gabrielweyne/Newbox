@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core import mail
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
@@ -75,7 +76,7 @@ class FuncionarioTests(APITestCase):
 
     def registrar(self, **extra):
         dados = {"nome": "Ana Lima", "cpf": self.CPF_VALIDO, "sede": self.coco.id,
-                 "senha": self.SENHA, "confirmar_senha": self.SENHA, **extra}
+                 "email": "Ana@Exemplo.com", "senha": self.SENHA, "confirmar_senha": self.SENHA, **extra}
         return self.client.post("/api/auth/registro/", dados)
 
     def login(self, senha=None):
@@ -97,13 +98,15 @@ class FuncionarioTests(APITestCase):
         self.assertEqual(r.data["sede_nome"], "Cocó")
         self.assertFalse(r.data["aprovado"])
         self.assertNotIn("senha", r.data)
+        self.assertEqual(r.data["email"], "ana@exemplo.com")
         usuario = User.objects.get(username="52998224725")
+        self.assertEqual(usuario.email, "ana@exemplo.com")
         self.assertTrue(usuario.check_password(self.SENHA))
         self.assertFalse(usuario.is_active)
 
     def test_campos_obrigatorios(self):
         r = self.client.post("/api/auth/registro/", {})
-        self.assertEqual(set(r.data), {"nome", "cpf", "sede", "senha", "confirmar_senha"})
+        self.assertEqual(set(r.data), {"nome", "cpf", "email", "sede", "senha", "confirmar_senha"})
 
     def test_cpf_invalido(self):
         for cpf in ("123.456.789-00", "111.111.111-11", "123"):
@@ -116,6 +119,13 @@ class FuncionarioTests(APITestCase):
         r = self.registrar(sede=self.cambeba.id)
         self.assertEqual(r.status_code, 400)
         self.assertIn("cpf", r.data)
+
+    def test_email_invalido_ou_duplicado(self):
+        self.assertIn("email", self.registrar(email="nao-e-email").data)
+        self.registrar()
+        r = self.registrar(cpf="111.444.777-35", email="ANA@exemplo.com")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("email", r.data)
 
     def test_senhas_diferentes_ou_fracas(self):
         self.assertIn("confirmar_senha", self.registrar(confirmar_senha="outra").data)
@@ -308,3 +318,107 @@ class AutenticacaoJWTTests(APITestCase):
         r = self.client.get("/api/auth/eu/")
         self.assertEqual(r.data["sede"]["nome"], "Cambeba")
         self.assertFalse(r.data["admin"])
+
+
+@override_settings(FRONTEND_URL="https://site.newbox.test", PASSWORD_RESET_TIMEOUT=3600)
+class EsqueciSenhaTests(APITestCase):
+    CPF = "529.982.247-25"
+    NOVA = "Nova#Senha2026"
+
+    def setUp(self):
+        cache.clear()
+        self.usuario = User.objects.create_user(
+            "52998224725", password="Antiga#Senha2026", email="ana@exemplo.com"
+        )
+        Funcionario.objects.create(
+            usuario=self.usuario, nome="Ana Lima", cpf="52998224725",
+            sede=Sede.objects.get(nome="Cocó"),
+        )
+
+    def pedir(self, cpf=None):
+        return self.client.post("/api/auth/senha/esqueci/", {"cpf": cpf or self.CPF})
+
+    def link(self):
+        import re
+        from urllib.parse import parse_qs, urlparse
+        url = re.search(r"https://\S+", mail.outbox[-1].body).group(0)
+        q = parse_qs(urlparse(url).query)
+        return url, q["uid"][0], q["token"][0]
+
+    def redefinir(self, uid, token, senha=None, confirmar=None):
+        senha = senha or self.NOVA
+        return self.client.post("/api/auth/senha/redefinir/", {
+            "uid": uid, "token": token, "senha": senha, "confirmar_senha": confirmar or senha,
+        })
+
+    def test_envia_email_com_link(self):
+        r = self.pedir()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.to, ["ana@exemplo.com"])
+        self.assertIn("Ana Lima", email.body)
+        url, _, _ = self.link()
+        self.assertTrue(url.startswith("https://site.newbox.test/redefinir-senha?uid="))
+        self.assertIn(url.replace("&", "&amp;"), email.alternatives[0][0])  # versão HTML
+
+    def test_resposta_igual_para_cpf_inexistente(self):
+        existente = self.pedir().data
+        inexistente = self.pedir(cpf="111.444.777-35").data
+        self.assertEqual(existente, inexistente)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_nao_envia_para_conta_pendente(self):
+        self.usuario.is_active = False
+        self.usuario.save()
+        self.assertEqual(self.pedir().status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_redefine_senha_e_link_so_vale_uma_vez(self):
+        self.pedir()
+        _, uid, token = self.link()
+        r = self.redefinir(uid, token)
+        self.assertEqual(r.status_code, 200, r.data)
+        r = self.client.post("/api/auth/login/", {"cpf": self.CPF, "senha": self.NOVA})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.redefinir(uid, token, "Outra#Senha2026").status_code, 400)
+
+    def test_redefinir_derruba_tokens_antigos(self):
+        access = self.client.post(
+            "/api/auth/login/", {"cpf": self.CPF, "senha": "Antiga#Senha2026"}
+        ).data["access"]
+        self.pedir()
+        _, uid, token = self.link()
+        self.redefinir(uid, token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+        self.assertEqual(self.client.get("/api/boxes/").status_code, 401)
+
+    def test_token_invalido_ou_senha_fraca(self):
+        self.pedir()
+        _, uid, token = self.link()
+        self.assertIn("token", self.redefinir(uid, "abc-123").data)
+        self.assertIn("token", self.redefinir("lixo", token).data)
+        self.assertIn("senha", self.redefinir(uid, token, "123", "123").data)
+        self.assertIn("confirmar_senha", self.redefinir(uid, token, self.NOVA, "outra").data)
+
+    def test_link_expira(self):
+        self.pedir()
+        _, uid, token = self.link()
+        with override_settings(PASSWORD_RESET_TIMEOUT=-1):
+            self.assertIn("token", self.redefinir(uid, token).data)
+
+    def test_limite_de_pedidos(self):
+        for _ in range(5):
+            self.pedir()
+        self.assertEqual(self.pedir().status_code, 429)
+
+    def test_admin_edita_email(self):
+        admin_user = User.objects.create_superuser("chefe", password="x")
+        self.client.force_login(admin_user)
+        url = f"/admin/boxes/funcionario/{self.usuario.funcionario.pk}/change/"
+        self.assertEqual(self.client.get(url).status_code, 200)
+        r = self.client.post(url, {"nome": "Ana Lima", "email": "nova@exemplo.com",
+                                   "sede": self.usuario.funcionario.sede_id})
+        self.assertEqual(r.status_code, 302)
+        self.usuario.refresh_from_db()
+        self.assertEqual(self.usuario.email, "nova@exemplo.com")

@@ -148,7 +148,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
-    "DEFAULT_THROTTLE_RATES": {"login": "10/min"},
+    "DEFAULT_THROTTLE_RATES": {"login": "10/min", "senha": "5/min"},
 }
 
 SIMPLE_JWT = {
@@ -162,3 +162,19 @@ SIMPLE_JWT = {
     "CHECK_REVOKE_TOKEN": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+# E-mail (recuperação de senha). Em desenvolvimento os e-mails aparecem no terminal.
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "Newbox <nao-responda@newbox.com.br>")
+
+# Endereço do site (front-end) usado no link do e-mail de redefinição
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+# Validade do link de redefinição de senha (segundos)
+PASSWORD_RESET_TIMEOUT = int(os.environ.get("PASSWORD_RESET_HORAS", "1")) * 3600

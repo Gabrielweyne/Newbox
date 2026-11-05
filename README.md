@@ -26,7 +26,7 @@ Testes: `python manage.py test boxes`
 | `Sede`    | nome (único), endereco                                                 |
 | `Cliente` | nome                                                                   |
 | `Box`     | sede, tamanho, valor, cliente (quem aluga), anexo_pagamento (arquivo) |
-| `Funcionario` | usuario (login), nome, cpf (único, validado), sede               |
+| `Funcionario` | usuario (login + e-mail), nome, cpf (único, validado), sede      |
 
 - **Sede 1 → N Box**: uma sede tem muitos boxes
 - **Cliente 1 → N Box**: um cliente pode alugar muitos boxes
@@ -43,7 +43,7 @@ Regras (validadas na API **e** no banco):
 
 ## Autenticação (JWT)
 
-1. O funcionário se cadastra em `POST /api/auth/registro/` com `nome`, `cpf`, `sede`, `senha` e `confirmar_senha`.
+1. O funcionário se cadastra em `POST /api/auth/registro/` com `nome`, `cpf`, `email`, `sede`, `senha` e `confirmar_senha`.
 2. A conta nasce **aguardando aprovação**. Um administrador aprova em `/admin/` → Funcionários →
    selecionar → ação "Aprovar acesso".
 3. Login em `POST /api/auth/login/` com `cpf` e `senha`. A resposta traz:
@@ -57,8 +57,25 @@ Regras (validadas na API **e** no banco):
 6. `POST /api/auth/logout/` com `{refresh}` invalida o refresh token.
 7. `GET /api/auth/eu/` mostra quem está logado e a sede.
 
+### Esqueci minha senha
+
+1. `POST /api/auth/senha/esqueci/` com `{cpf}`. Se houver funcionário **aprovado** com esse CPF,
+   ele recebe um e-mail com o link `{FRONTEND_URL}/redefinir-senha?uid=...&token=...`.
+   A resposta é sempre a mesma, exista ou não o CPF (não revela quem é cadastrado).
+2. A página do site lê `uid` e `token` do link e envia
+   `POST /api/auth/senha/redefinir/` com `{uid, token, senha, confirmar_senha}`.
+3. O link vale 1 hora (`PASSWORD_RESET_HORAS`), só pode ser usado uma vez, e a troca
+   derruba as sessões (JWT) abertas.
+
+Configuração de e-mail (variáveis de ambiente): `EMAIL_BACKEND`
+(`django.core.mail.backends.smtp.EmailBackend` em produção), `EMAIL_HOST`, `EMAIL_PORT`,
+`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` e `FRONTEND_URL`.
+Sem configuração, os e-mails aparecem no terminal do `runserver`.
+
+O administrador pode corrigir o e-mail de um funcionário em `/admin/` → Funcionários.
+
 Segurança:
-- Login limitado a 10 tentativas por minuto por IP.
+- Login limitado a 10 tentativas por minuto por IP; pedidos de senha, a 5 por minuto.
 - Bloquear o funcionário no admin ou trocar a senha dele derruba os tokens já emitidos.
 - Durações configuráveis por `JWT_ACCESS_MINUTOS` e `JWT_REFRESH_DIAS`.
 - O token carrega `nome`, `sede_id` e `sede_nome` só para o front-end exibir; as

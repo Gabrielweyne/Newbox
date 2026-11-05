@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 
@@ -29,12 +30,51 @@ class BoxAdmin(admin.ModelAdmin):
         return obj.alugado
 
 
+class FuncionarioAdminForm(forms.ModelForm):
+    """Permite editar o e-mail (guardado na conta de login) pela tela do funcionário."""
+
+    email = forms.EmailField(label="e-mail", help_text="Usado para recuperar a senha.")
+
+    class Meta:
+        model = Funcionario
+        fields = ["nome", "sede"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.fields["email"].initial = self.instance.usuario.email
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        outros = User.objects.filter(email__iexact=email)
+        if self.instance.pk:
+            outros = outros.exclude(pk=self.instance.usuario_id)
+        if outros.exists():
+            raise forms.ValidationError("Já existe funcionário com este e-mail.")
+        return email
+
+    def save(self, commit=True):
+        funcionario = super().save(commit=commit)
+        funcionario.usuario.email = self.cleaned_data["email"]
+        funcionario.usuario.save(update_fields=["email"])
+        return funcionario
+
+
 @admin.register(Funcionario)
 class FuncionarioAdmin(admin.ModelAdmin):
-    list_display = ["nome", "cpf", "sede", "aprovado"]
+    form = FuncionarioAdminForm
+    fields = ["nome", "cpf", "email", "sede", "usuario"]
+    list_display = ["nome", "cpf", "email", "sede", "aprovado"]
     list_filter = ["sede", "usuario__is_active"]
-    search_fields = ["nome", "cpf"]
+    search_fields = ["nome", "cpf", "usuario__email"]
     readonly_fields = ["usuario", "cpf"]
+
+    def has_add_permission(self, request):
+        return False  # funcionários se cadastram pelo site (/api/auth/registro/)
+
+    @admin.display(description="e-mail")
+    def email(self, obj):
+        return obj.usuario.email
     actions = ["aprovar", "bloquear"]
 
     @admin.display(boolean=True)
