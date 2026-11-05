@@ -21,7 +21,8 @@ class NewboxApiTests(APITestCase):
 
     def test_resumo_da_sede(self):
         Box.objects.create(sede=self.sede, tamanho="2x2", valor=250,
-                           cliente=self.maria, anexo_pagamento="comprovantes/x.pdf")
+                           cliente=self.maria, anexo_pagamento="comprovantes/x.pdf",
+                           dia_vencimento=10, alugado_em="2026-11-01")
         Box.objects.create(sede=self.sede, tamanho="3x3", valor=400)
         r = self.client.get(f"/api/sedes/{self.sede.id}/")
         self.assertEqual(r.status_code, 200)
@@ -38,6 +39,7 @@ class NewboxApiTests(APITestCase):
     def test_box_alugado_exige_comprovante(self):
         r = self.client.post("/api/boxes/", {
             "sede": self.sede.id, "tamanho": "P", "valor": "10", "cliente": self.maria.id,
+            "dia_vencimento": 10,
         })
         self.assertEqual(r.status_code, 400)
         self.assertIn("anexo_pagamento", r.data)
@@ -45,7 +47,7 @@ class NewboxApiTests(APITestCase):
     def test_alugar_box_com_upload(self):
         r = self.client.post("/api/boxes/", {
             "sede": self.sede.id, "tamanho": "P", "valor": "10",
-            "cliente": self.maria.id, "anexo_pagamento": self.comprovante(),
+            "cliente": self.maria.id, "anexo_pagamento": self.comprovante(), "dia_vencimento": 15,
         }, format="multipart")
         self.assertEqual(r.status_code, 201, r.data)
         self.assertTrue(r.data["alugado"])
@@ -196,7 +198,7 @@ class AcessoPorSedeTests(APITestCase):
     def test_funcionario_aluga_box_da_sede(self):
         self.client.force_authenticate(self.ana)
         r = self.client.patch(f"/api/boxes/{self.box_coco.id}/", {
-            "cliente": self.cliente_x.id,
+            "cliente": self.cliente_x.id, "dia_vencimento": 20,
             "anexo_pagamento": SimpleUploadedFile("c.pdf", b"%PDF", content_type="application/pdf"),
         }, format="multipart")
         self.assertEqual(r.status_code, 200, r.data)
@@ -432,7 +434,8 @@ class RecursosDoSiteTests(APITestCase):
         self.cliente_x = Cliente.objects.create(nome="Carlos Souza")
         Cliente.objects.create(nome="Maria")
         self.box = Box.objects.create(sede=self.coco, tamanho="P", valor=10,
-                                      cliente=self.cliente_x, anexo_pagamento="c/x.pdf")
+                                      cliente=self.cliente_x, anexo_pagamento="c/x.pdf",
+                                      dia_vencimento=5, alugado_em="2026-11-01")
         usuario = User.objects.create_user("52998224725", is_active=False)
         self.pendente = Funcionario.objects.create(
             usuario=usuario, nome="Ana", cpf="52998224725", sede=self.coco)
@@ -473,3 +476,181 @@ class RecursosDoSiteTests(APITestCase):
             Box.objects.create(sede=self.coco, tamanho="P", valor=1)
         self.assertEqual(len(self.client.get("/api/boxes/").data["results"]), 50)
         self.assertEqual(len(self.client.get("/api/boxes/?page_size=500").data["results"]), 61)
+
+
+from datetime import date  # noqa: E402
+from io import StringIO  # noqa: E402
+from unittest import mock  # noqa: E402
+
+from django.core.management import call_command  # noqa: E402
+
+from . import cobranca  # noqa: E402
+from .models import Mensalidade  # noqa: E402
+
+
+def no_dia(dia):
+    """Faz o sistema achar que hoje é `dia`."""
+    return mock.patch("boxes.cobranca.hoje", return_value=dia)
+
+
+class DatasDeVencimentoTests(APITestCase):
+    def test_dia_30_em_fevereiro(self):
+        self.assertEqual(cobranca.data_vencimento(date(2027, 2, 1), 30), date(2027, 2, 28))
+        self.assertEqual(cobranca.data_vencimento(date(2028, 2, 1), 30), date(2028, 2, 29))
+        self.assertEqual(cobranca.data_vencimento(date(2026, 11, 1), 30), date(2026, 11, 30))
+
+    def test_dias_de_vencimento(self):
+        self.assertEqual(cobranca.dias_de_vencimento_hoje(date(2026, 11, 5)), [5])
+        self.assertEqual(cobranca.dias_de_vencimento_hoje(date(2026, 11, 6)), [])
+        self.assertEqual(cobranca.dias_de_vencimento_hoje(date(2027, 2, 28)), [30])
+        self.assertEqual(cobranca.dias_de_vencimento_hoje(date(2026, 12, 31)), [])
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media", FRONTEND_URL="https://site.test")
+class MensalidadesTests(APITestCase):
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.cambeba = Sede.objects.get(nome="Cambeba")
+        self.ana = User.objects.create_user("52998224725", email="ana@exemplo.com")
+        Funcionario.objects.create(usuario=self.ana, nome="Ana", cpf="52998224725", sede=self.coco)
+        self.beto = User.objects.create_user("11144477735", email="beto@exemplo.com")
+        Funcionario.objects.create(usuario=self.beto, nome="Beto", cpf="11144477735", sede=self.cambeba)
+        self.carlos = Cliente.objects.create(nome="Carlos")
+        self.box = Box.objects.create(sede=self.coco, tamanho="P", valor=200)
+        self.client.force_authenticate(self.ana)
+
+    def arquivo(self, nome="c.pdf"):
+        return SimpleUploadedFile(nome, b"%PDF", content_type="application/pdf")
+
+    def alugar(self, dia=10, quando=date(2026, 11, 4)):
+        with no_dia(quando):
+            return self.client.patch(f"/api/boxes/{self.box.id}/", {
+                "cliente": self.carlos.id, "anexo_pagamento": self.arquivo(), "dia_vencimento": dia,
+            }, format="multipart")
+
+    def listar(self, quando, url="/api/mensalidades/"):
+        with no_dia(quando):
+            return self.client.get(url)
+
+    def test_alugar_exige_dia_valido(self):
+        with no_dia(date(2026, 11, 4)):
+            r = self.client.patch(f"/api/boxes/{self.box.id}/", {
+                "cliente": self.carlos.id, "anexo_pagamento": self.arquivo(),
+            }, format="multipart")
+        self.assertIn("dia_vencimento", r.data)
+        r = self.alugar(dia=7)
+        self.assertIn("dia_vencimento", r.data)
+
+    def test_primeira_mensalidade_nasce_paga(self):
+        r = self.alugar()
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data["alugado_em"], "2026-11-04")
+        m = Mensalidade.objects.get()
+        self.assertEqual((m.competencia, m.vencimento, m.pago_em), (date(2026, 11, 1), date(2026, 11, 10), date(2026, 11, 4)))
+        self.assertTrue(m.comprovante.name)
+        self.assertEqual(m.registrado_por, self.ana)
+
+    def test_gera_meses_seguintes(self):
+        self.alugar(dia=30)
+        r = self.listar(date(2027, 2, 20))
+        itens = {i["competencia"]: i for i in r.data["results"]}
+        self.assertEqual(list(itens), ["2026-11-01", "2026-12-01", "2027-01-01", "2027-02-01"])
+        self.assertEqual(itens["2026-11-01"]["situacao"], "paga")
+        self.assertEqual(itens["2026-12-01"]["situacao"], "atrasada")
+        self.assertEqual(itens["2027-02-01"]["vencimento"], "2027-02-28")
+        self.assertEqual(itens["2027-02-01"]["situacao"], "a_vencer")
+        # chamar de novo não duplica
+        self.listar(date(2027, 2, 20))
+        self.assertEqual(Mensalidade.objects.count(), 4)
+
+    def test_avisos_no_dia_de_vencimento(self):
+        self.alugar(dia=10)
+        r = self.listar(date(2026, 12, 10), "/api/mensalidades/avisos/")
+        self.assertTrue(r.data["dia_de_vencimento"])
+        self.assertEqual([m["cliente_nome"] for m in r.data["vencem_hoje"]], ["Carlos"])
+        self.assertEqual(r.data["vencem_hoje"][0]["situacao"], "vence_hoje")
+        self.assertEqual(r.data["pendencias"], 1)
+        r = self.listar(date(2026, 12, 11), "/api/mensalidades/avisos/")
+        self.assertFalse(r.data["dia_de_vencimento"])
+        self.assertEqual(len(r.data["atrasadas"]), 1)
+
+    def test_registrar_pagamento(self):
+        self.alugar()
+        self.listar(date(2026, 12, 12))
+        dezembro = Mensalidade.objects.get(competencia=date(2026, 12, 1))
+        url = f"/api/mensalidades/{dezembro.id}/pagar/"
+        with no_dia(date(2026, 12, 12)):
+            self.assertIn("comprovante", self.client.post(url, {}, format="multipart").data)
+            r = self.client.post(url, {"comprovante": self.arquivo(), "pago_em": "2026-12-30"}, format="multipart")
+            self.assertIn("pago_em", r.data)
+            r = self.client.post(url, {"comprovante": self.arquivo()}, format="multipart")
+            self.assertEqual(r.status_code, 200, r.data)
+            self.assertEqual((r.data["situacao"], r.data["pago_em"]), ("paga", "2026-12-12"))
+            self.assertEqual(r.data["registrado_por_nome"], "Ana")
+            self.assertEqual(self.client.post(url, {"comprovante": self.arquivo()}, format="multipart").status_code, 400)
+            r = self.client.post(f"/api/mensalidades/{dezembro.id}/desfazer/")
+            self.assertEqual(r.data["situacao"], "atrasada")
+
+    def test_filtros(self):
+        self.alugar()
+        r = self.listar(date(2027, 1, 20), "/api/mensalidades/?situacao=atrasada")
+        self.assertEqual([m["competencia"] for m in r.data["results"]], ["2026-12-01", "2027-01-01"])
+        r = self.listar(date(2027, 1, 20), "/api/mensalidades/?competencia=2026-11")
+        self.assertEqual(len(r.data["results"]), 1)
+        r = self.listar(date(2027, 1, 20), "/api/boxes/")
+        self.assertTrue(r.data["results"][0]["em_atraso"])
+
+    def test_outra_sede_nao_ve(self):
+        self.alugar()
+        self.client.force_authenticate(self.beto)
+        r = self.listar(date(2027, 1, 20))
+        self.assertEqual(r.data["count"], 0)
+        m = Mensalidade.objects.first()
+        with no_dia(date(2027, 1, 20)):
+            r = self.client.post(f"/api/mensalidades/{m.id}/pagar/", {"comprovante": self.arquivo()}, format="multipart")
+        self.assertEqual(r.status_code, 404)
+
+    def test_liberar_mantem_atrasadas_e_apaga_futuras(self):
+        self.alugar(dia=25)
+        with no_dia(date(2027, 1, 10)):
+            self.client.get("/api/mensalidades/")
+            r = self.client.post(f"/api/boxes/{self.box.id}/liberar/")
+        self.assertFalse(r.data["alugado"])
+        self.assertIsNone(r.data["dia_vencimento"])
+        restantes = sorted(Mensalidade.objects.values_list("competencia", flat=True))
+        # nov (paga) e dez (atrasada) ficam; jan (vence dia 25, ainda não venceu) sai
+        self.assertEqual(restantes, [date(2026, 11, 1), date(2026, 12, 1)])
+
+    def test_mudar_valor_e_dia_atualiza_futuras(self):
+        self.alugar(dia=10)
+        self.listar(date(2026, 12, 2))
+        with no_dia(date(2026, 12, 2)):
+            self.client.patch(f"/api/boxes/{self.box.id}/", {"valor": "250", "dia_vencimento": 20})
+        dez = Mensalidade.objects.get(competencia=date(2026, 12, 1))
+        nov = Mensalidade.objects.get(competencia=date(2026, 11, 1))
+        self.assertEqual((dez.valor, dez.vencimento), (250, date(2026, 12, 20)))
+        self.assertEqual(nov.valor, 200)  # já paga, não muda
+
+    def test_nao_troca_cliente_sem_liberar(self):
+        self.alugar()
+        outro = Cliente.objects.create(nome="Outro")
+        r = self.client.patch(f"/api/boxes/{self.box.id}/", {"cliente": outro.id})
+        self.assertIn("cliente", r.data)
+
+    def test_email_de_vencimentos(self):
+        self.alugar(dia=10)
+        Box.objects.create(sede=self.cambeba, tamanho="G", valor=500)  # sem aluguel
+        User.objects.create_user("chefe", email="chefe@exemplo.com", is_staff=True)
+        saida = StringIO()
+        call_command("avisar_vencimentos", data=date(2026, 12, 9), stdout=saida)
+        self.assertIn("não é dia de vencimento", saida.getvalue())
+        self.assertEqual(len(mail.outbox), 0)
+
+        call_command("avisar_vencimentos", data=date(2026, 12, 10), stdout=StringIO())
+        destinos = sorted(e.to[0] for e in mail.outbox)
+        self.assertEqual(destinos, ["ana@exemplo.com", "chefe@exemplo.com"])  # Beto (Cambeba) não
+        email = next(e for e in mail.outbox if e.to == ["ana@exemplo.com"])
+        self.assertIn("NÃO PAGARAM (1)", email.body)
+        self.assertIn("Carlos", email.body)
+        self.assertIn("(1 pendente)", email.subject)
+        self.assertIn("https://site.test/mensalidades", email.body)

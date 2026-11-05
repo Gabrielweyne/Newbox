@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-br">
+  <body style="margin:0;padding:24px;background:#f7f5fa;font-family:Poppins,Arial,Helvetica,sans-serif;color:#2c3e50;">
+    <table role="presentation" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;">
+      <tr><td style="background:#23313f;padding:22px 28px;">
+        <p style="margin:0;color:#bf98cb;font-size:22px;">Vencimentos de hoje</p>
+        <p style="margin:4px 0 0;color:#ffffffbf;font-size:13px;">{{ dia|date:"d/m/Y" }}</p>
+      </td></tr>
+      <tr><td style="height:6px;background:#251f3c;"></td></tr>
+      {% for s in sedes %}
+      <tr><td style="padding:24px 28px 8px;">
+        <h2 style="margin:0 0 16px;font-size:17px;color:#23313f;">Sede {{ s.sede.nome }}</h2>
+
+        <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#b42318;">Não pagaram ({{ s.nao_pagas|length }})</p>
+        {% for m in s.nao_pagas %}
+        <p style="margin:0 0 6px;font-size:14px;padding:8px 12px;background:#fef3f2;border-radius:6px;">
+          <strong>Box #{{ m.box_id }}</strong> · {{ m.cliente.nome }} · R$ {{ m.valor }}
+        </p>
+        {% empty %}
+        <p style="margin:0 0 6px;font-size:14px;color:#027a48;">Ninguém. Todos em dia!</p>
+        {% endfor %}
+
+        <p style="margin:16px 0 8px;font-size:13px;font-weight:bold;color:#027a48;">Pagaram ({{ s.pagas|length }})</p>
+        {% for m in s.pagas %}
+        <p style="margin:0 0 6px;font-size:14px;padding:8px 12px;background:#ecfdf3;border-radius:6px;">
+          <strong>Box #{{ m.box_id }}</strong> · {{ m.cliente.nome }} · pago em {{ m.pago_em|date:"d/m" }}
+        </p>
+        {% empty %}
+        <p style="margin:0 0 6px;font-size:14px;color:#52525b;">Nenhum pagamento registrado ainda.</p>
+        {% endfor %}
+
+        {% if s.atrasadas %}
+        <p style="margin:16px 0 8px;font-size:13px;font-weight:bold;color:#b54708;">Em atraso ({{ s.atrasadas|length }})</p>
+        {% for m in s.atrasadas %}
+        <p style="margin:0 0 6px;font-size:14px;padding:8px 12px;background:#fffaeb;border-radius:6px;">
+          <strong>Box #{{ m.box_id }}</strong> · {{ m.cliente.nome }} · venceu em {{ m.vencimento|date:"d/m/Y" }} · R$ {{ m.valor }}
+        </p>
+        {% endfor %}
+        {% endif %}
+      </td></tr>
+      {% endfor %}
+      <tr><td style="padding:16px 28px 28px;">
+        <a href="{{ link }}" style="display:inline-block;padding:12px 20px;background:#965ba5;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">
+          Registrar pagamentos
+        </a>
+      </td></tr>
+      <tr><td style="background:#965ba5;padding:14px 28px;color:#ffffff;font-size:12px;">Newbox · Guarda tudo</td></tr>
+    </table>
+  </body>
+</html>

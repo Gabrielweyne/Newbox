@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 
-from .models import Box, Cliente, Funcionario, Sede
+from .models import Box, Cliente, Funcionario, Mensalidade, Sede
 
 User = get_user_model()
 
@@ -21,7 +21,7 @@ class ClienteAdmin(admin.ModelAdmin):
 
 @admin.register(Box)
 class BoxAdmin(admin.ModelAdmin):
-    list_display = ["id", "sede", "tamanho", "valor", "cliente", "alugado"]
+    list_display = ["id", "sede", "tamanho", "valor", "cliente", "dia_vencimento", "alugado"]
     list_filter = ["sede"]
     search_fields = ["cliente__nome"]
 
@@ -88,3 +88,12 @@ class FuncionarioAdmin(admin.ModelAdmin):
     @admin.action(description="Bloquear acesso dos funcionários selecionados")
     def bloquear(self, request, queryset):
         User.objects.filter(funcionario__in=queryset).update(is_active=False)
+
+
+@admin.register(Mensalidade)
+class MensalidadeAdmin(admin.ModelAdmin):
+    list_display = ["box", "cliente", "competencia", "vencimento", "valor", "pago_em"]
+    list_filter = ["box__sede", "competencia"]
+    search_fields = ["cliente__nome", "box__id"]
+    date_hierarchy = "vencimento"
+    raw_id_fields = ["box", "cliente", "registrado_por"]

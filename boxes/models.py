@@ -3,6 +3,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
 
+from .cobranca import DIAS_VENCIMENTO
 from .validators import validar_cpf
 
 
@@ -46,12 +47,15 @@ class Cliente(models.Model):
         return self.nome
 
 
+
+
 class Box(models.Model):
     """
     Box de uma sede.
 
-    Box alugado: cliente e anexo de pagamento são obrigatórios juntos.
-    Box livre: os dois ficam vazios (é o que conta como "não alugado").
+    Box alugado: cliente, anexo de pagamento, dia de vencimento e data de
+    início são obrigatórios juntos.
+    Box livre: todos ficam vazios (é o que conta como "não alugado").
     """
 
     sede = models.ForeignKey(Sede, on_delete=models.PROTECT, related_name="boxes")
@@ -70,6 +74,15 @@ class Box(models.Model):
     anexo_pagamento = models.FileField(
         "anexo de pagamento", upload_to="comprovantes/%Y/%m/", null=True, blank=True
     )
+    dia_vencimento = models.PositiveSmallIntegerField(
+        "dia de vencimento",
+        choices=[(d, f"Dia {d}") for d in DIAS_VENCIMENTO],
+        null=True,
+        blank=True,
+        help_text="Dia do mês em que a mensalidade vence. Em meses mais curtos, "
+        "o dia 30 passa para o último dia do mês.",
+    )
+    alugado_em = models.DateField("alugado em", null=True, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -91,6 +104,17 @@ class Box(models.Model):
                     & ~Q(anexo_pagamento="")
                 ),
                 name="box_aluguel_completo",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(cliente__isnull=True) & Q(dia_vencimento__isnull=True) & Q(alugado_em__isnull=True)
+                )
+                | (
+                    Q(cliente__isnull=False)
+                    & Q(dia_vencimento__in=DIAS_VENCIMENTO)
+                    & Q(alugado_em__isnull=False)
+                ),
+                name="box_aluguel_com_vencimento",
             ),
         ]
 
@@ -139,3 +163,55 @@ class Funcionario(models.Model):
 
     def __str__(self):
         return f"{self.nome} ({self.sede})"
+
+
+class Mensalidade(models.Model):
+    """
+    Cobrança mensal de um box alugado.
+
+    Uma por box por mês (competência). É gerada automaticamente pelo sistema
+    (ver boxes/cobranca.py). Paga = tem data de pagamento e comprovante.
+    """
+
+    box = models.ForeignKey(Box, on_delete=models.CASCADE, related_name="mensalidades")
+    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name="mensalidades")
+    competencia = models.DateField("mês de referência", help_text="Sempre o dia 1 do mês.")
+    vencimento = models.DateField()
+    valor = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    pago_em = models.DateField("pago em", null=True, blank=True)
+    comprovante = models.FileField(upload_to="comprovantes/%Y/%m/", null=True, blank=True)
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", verbose_name="pagamento registrado por",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["vencimento", "box_id"]
+        constraints = [
+            models.UniqueConstraint(fields=["box", "competencia"], name="mensalidade_unica_por_mes"),
+            models.CheckConstraint(condition=Q(competencia__day=1), name="mensalidade_competencia_dia_1"),
+            models.CheckConstraint(condition=Q(valor__gte=0), name="mensalidade_valor_positivo"),
+            models.CheckConstraint(
+                condition=(Q(pago_em__isnull=True) & (Q(comprovante__isnull=True) | Q(comprovante="")))
+                | (Q(pago_em__isnull=False) & Q(comprovante__isnull=False) & ~Q(comprovante="")),
+                name="mensalidade_paga_com_comprovante",
+            ),
+        ]
+        indexes = [models.Index(fields=["vencimento", "pago_em"])]
+
+    @property
+    def pago(self):
+        return self.pago_em is not None
+
+    def situacao(self, hoje):
+        if self.pago_em:
+            return "paga"
+        if self.vencimento < hoje:
+            return "atrasada"
+        if self.vencimento == hoje:
+            return "vence_hoje"
+        return "a_vencer"
+
+    def __str__(self):
+        return f"Box {self.box_id} - {self.competencia:%m/%Y}"

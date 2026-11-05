@@ -5,12 +5,13 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .auth import EuView, LoginView, LogoutView, RegistroView
 from .senha import EsqueciSenhaView, RedefinirSenhaView
 
-from .views import BoxViewSet, ClienteViewSet, FuncionarioViewSet, SedeViewSet
+from .views import BoxViewSet, ClienteViewSet, FuncionarioViewSet, MensalidadeViewSet, SedeViewSet
 
 router = DefaultRouter()
 router.register("sedes", SedeViewSet, basename="sede")
 router.register("clientes", ClienteViewSet, basename="cliente")
 router.register("boxes", BoxViewSet, basename="box")
+router.register("mensalidades", MensalidadeViewSet, basename="mensalidade")
 router.register("funcionarios", FuncionarioViewSet, basename="funcionario")
 
 urlpatterns = [
