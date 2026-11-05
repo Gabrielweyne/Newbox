@@ -1,8 +1,11 @@
 # Newbox
 
-API da Newbox (aluguel de boxes) em **Django REST Framework** + **PostgreSQL**.
+Sistema interno da Newbox (aluguel de boxes):
 
-## Como rodar
+- `boxes/`, `config/`: API em **Django REST Framework** + **PostgreSQL**
+- `frontend/`: site dos funcionários em **React** (Vite + Tailwind), com o visual de newboxbrasil.com.br
+
+## Como rodar a API
 
 ```bash
 python3 -m venv .venv
@@ -11,9 +14,29 @@ pip install -r requirements.txt
 createdb newbox
 cp .env.example .env   # e preencha
 python manage.py migrate
-python manage.py createsuperuser
+python manage.py createsuperuser   # use o CPF (só números) como "Username"
 python manage.py runserver
 ```
+
+O login do site é feito por CPF, então o **administrador também usa o CPF** como nome de usuário.
+
+## Como rodar o site
+
+Precisa do [Node.js](https://nodejs.org) 20 ou mais novo. Com a API rodando em outro terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Abra http://localhost:3000. Em desenvolvimento, o site repassa `/api` e `/media` para o Django
+na porta 8000 (veja `frontend/vite.config.js`).
+
+Telas: login, cadastro, esqueci/redefinir senha, painel da sede, boxes (cadastrar, alugar com
+comprovante, liberar, excluir), clientes e, para o administrador, aprovação de funcionários.
+
+Para gerar a versão de produção: `npm run build` (arquivos em `frontend/dist/`).
 
 As configurações ficam no arquivo `.env` (modelo em `.env.example`), ou em variáveis de ambiente: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`,
 `DJANGO_SECRET_KEY` (também assina os JWT), `DJANGO_DEBUG` (`1`/`0`), `DJANGO_ALLOWED_HOSTS` (separados por vírgula).
@@ -112,9 +135,9 @@ Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 | Rota              | Descrição                                                                 |
 |-------------------|---------------------------------------------------------------------------|
 | `/api/sedes/`     | CRUD de sedes. Inclui `numero_de_box`, `alugados`, `nao_alugados` (calculados) |
-| `/api/clientes/`  | CRUD de clientes                                                          |
-| `/api/boxes/`     | CRUD de boxes. Filtros: `?sede=`, `?cliente=`, `?alugado=true\|false`     |
-| `/api/funcionarios/` | Consulta de funcionários (somente leitura). Filtro: `?sede=` |
+| `/api/clientes/`  | CRUD de clientes. Busca: `?busca=`                                        |
+| `/api/boxes/`     | CRUD de boxes. Filtros: `?sede=`, `?cliente=`, `?alugado=true\|false`. `POST /api/boxes/<id>/liberar/` encerra o aluguel |
+| `/api/funcionarios/` | Consulta de funcionários. Filtros: `?sede=`, `?aprovado=true\|false`. Admin: `POST .../<id>/aprovar/` e `.../<id>/bloquear/` |
 | `/api/funcionarios/sedes/` | Aberto: lista as sedes para o formulário de cadastro |
 | `/admin/`         | Painel administrativo do Django                                           |
 

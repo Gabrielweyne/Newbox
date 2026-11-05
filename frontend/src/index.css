@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+/* Identidade visual da Newbox (newboxbrasil.com.br) */
+@theme {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+
+  --color-roxo-50: #f6f0f8;
+  --color-roxo-100: #ece0f0;
+  --color-roxo-200: #d9c1e1;
+  --color-roxo-300: #bf98cb;
+  --color-roxo-400: #a873b6;
+  --color-roxo: #965ba5;          /* cor principal do site */
+  --color-roxo-600: #7f4a8c;
+  --color-roxo-700: #683c73;
+
+  --color-marinho: #23313f;       /* faixa "Se você precisa de espaço..." */
+  --color-marinho-claro: #2c3e50; /* texto do logo */
+  --color-noite: #251f3c;         /* faixa roxa escura */
+  --color-fundo: #f7f5fa;
+}
+
+@layer base {
+  body {
+    @apply bg-fundo font-sans text-marinho-claro antialiased;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-roxo;
+  }
+}
