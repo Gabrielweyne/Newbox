@@ -9,12 +9,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 createdb newbox
+cp .env.example .env   # e preencha
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver
 ```
 
-Configuração por variáveis de ambiente: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`,
+As configurações ficam no arquivo `.env` (modelo em `.env.example`), ou em variáveis de ambiente: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`,
 `DJANGO_SECRET_KEY` (também assina os JWT), `DJANGO_DEBUG` (`1`/`0`), `DJANGO_ALLOWED_HOSTS` (separados por vírgula).
 
 Testes: `python manage.py test boxes`
@@ -67,10 +68,22 @@ Regras (validadas na API **e** no banco):
 3. O link vale 1 hora (`PASSWORD_RESET_HORAS`), só pode ser usado uma vez, e a troca
    derruba as sessões (JWT) abertas.
 
-Configuração de e-mail (variáveis de ambiente): `EMAIL_BACKEND`
-(`django.core.mail.backends.smtp.EmailBackend` em produção), `EMAIL_HOST`, `EMAIL_PORT`,
-`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` e `FRONTEND_URL`.
-Sem configuração, os e-mails aparecem no terminal do `runserver`.
+Sem configuração de e-mail, as mensagens só aparecem no terminal do `runserver`.
+
+#### Configurando o envio pelo Gmail
+
+1. Crie uma conta Gmail para a empresa (ex.: `newbox.fortaleza@gmail.com`).
+2. Ative a **Verificação em duas etapas**: Conta Google → Segurança.
+3. Gere uma **senha de app**: https://myaccount.google.com/apppasswords → dê o nome
+   "Newbox site" → copie a senha de 16 letras (aparece só uma vez).
+4. No `.env`, preencha `EMAIL_HOST_USER` e `DEFAULT_FROM_EMAIL` com o endereço do Gmail e
+   `EMAIL_HOST_PASSWORD` com a senha de app (sem espaços). Os demais campos de e-mail do
+   `.env.example` já estão prontos para o Gmail.
+5. Teste: `python manage.py sendtestemail seu.email.pessoal@exemplo.com`
+
+Observações: o Gmail gratuito envia até ~500 e-mails por dia (de sobra para recuperação de
+senha). Se a senha da conta Google for trocada, a senha de app deixa de valer e é preciso
+gerar outra.
 
 O administrador pode corrigir o e-mail de um funcionário em `/admin/` → Funcionários.
 
