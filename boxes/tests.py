@@ -61,3 +61,49 @@ class NewboxApiTests(APITestCase):
     def test_exige_login(self):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get("/api/boxes/").status_code, 403)
+
+
+class FuncionarioTests(APITestCase):
+    CPF_VALIDO = "529.982.247-25"
+
+    def setUp(self):
+        # Criadas pela migration 0003
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.cambeba = Sede.objects.get(nome="Cambeba")
+
+    def test_sedes_disponiveis_sem_login(self):
+        r = self.client.get("/api/funcionarios/sedes/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(sorted(s["nome"] for s in r.data), ["Cambeba", "Cocó"])
+
+    def test_funcionario_se_registra_sem_login(self):
+        r = self.client.post("/api/funcionarios/", {
+            "nome": "Ana Lima", "cpf": self.CPF_VALIDO, "sede": self.coco.id,
+        })
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data["cpf"], "52998224725")
+        self.assertEqual(r.data["sede_nome"], "Cocó")
+
+    def test_campos_obrigatorios(self):
+        r = self.client.post("/api/funcionarios/", {})
+        self.assertEqual(set(r.data), {"nome", "cpf", "sede"})
+
+    def test_cpf_invalido(self):
+        for cpf in ("123.456.789-00", "111.111.111-11", "123"):
+            r = self.client.post("/api/funcionarios/", {
+                "nome": "X", "cpf": cpf, "sede": self.coco.id,
+            })
+            self.assertEqual(r.status_code, 400, cpf)
+            self.assertIn("cpf", r.data)
+
+    def test_cpf_duplicado(self):
+        dados = {"nome": "Ana", "cpf": self.CPF_VALIDO, "sede": self.coco.id}
+        self.client.post("/api/funcionarios/", dados)
+        r = self.client.post("/api/funcionarios/", {**dados, "sede": self.cambeba.id})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("cpf", r.data)
+
+    def test_listar_exige_login(self):
+        self.assertEqual(self.client.get("/api/funcionarios/").status_code, 403)
+        self.client.force_authenticate(User.objects.create_user("gerente"))
+        self.assertEqual(self.client.get("/api/funcionarios/").status_code, 200)

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from .models import Box, Cliente, Sede
+from .models import Box, Cliente, Funcionario, Sede
+from .validators import somente_digitos
 
 
 class SedeSerializer(serializers.ModelSerializer):
@@ -39,3 +40,30 @@ class BoxSerializer(serializers.ModelSerializer):
                 {"cliente": "Obrigatório quando há anexo de pagamento."}
             )
         return attrs
+
+
+class SedeOpcaoSerializer(serializers.ModelSerializer):
+    """Versão mínima da sede, para o formulário de cadastro de funcionário."""
+
+    class Meta:
+        model = Sede
+        fields = ["id", "nome"]
+
+
+class FuncionarioSerializer(serializers.ModelSerializer):
+    sede_nome = serializers.CharField(source="sede.nome", read_only=True)
+
+    class Meta:
+        model = Funcionario
+        fields = ["id", "nome", "cpf", "sede", "sede_nome"]
+        extra_kwargs = {"cpf": {"max_length": 14}}  # aceita "000.000.000-00"
+
+    def validate_cpf(self, valor):
+        cpf = somente_digitos(valor)
+        Funcionario._meta.get_field("cpf").run_validators(cpf)
+        existe = Funcionario.objects.filter(cpf=cpf)
+        if self.instance:
+            existe = existe.exclude(pk=self.instance.pk)
+        if existe.exists():
+            raise serializers.ValidationError("Já existe funcionário com este CPF.")
+        return cpf

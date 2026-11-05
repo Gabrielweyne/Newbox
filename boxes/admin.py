@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Box, Cliente, Sede
+from .models import Box, Cliente, Funcionario, Sede
 
 
 @admin.register(Sede)
@@ -24,3 +24,10 @@ class BoxAdmin(admin.ModelAdmin):
     @admin.display(boolean=True)
     def alugado(self, obj):
         return obj.alugado
+
+
+@admin.register(Funcionario)
+class FuncionarioAdmin(admin.ModelAdmin):
+    list_display = ["nome", "cpf", "sede"]
+    list_filter = ["sede"]
+    search_fields = ["nome", "cpf"]
