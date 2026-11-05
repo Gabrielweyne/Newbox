@@ -109,3 +109,31 @@ export const IconeDestravar = (p) => (
     <path d="M8 11V7a4 4 0 0 1 7.5-2" />
   </Svg>
 );
+export const IconeSino = (p) => (
+  <Svg {...p}>
+    <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16ZM10 20a2 2 0 0 0 4 0" />
+  </Svg>
+);
+export const IconeCalendario = (p) => (
+  <Svg {...p}>
+    <rect x="3.5" y="5" width="17" height="15" rx="1.5" />
+    <path d="M3.5 10h17M8 3v4M16 3v4" />
+  </Svg>
+);
+export const IconeSetaEsq = (p) => (
+  <Svg {...p}>
+    <path d="m15 5-7 7 7 7" />
+  </Svg>
+);
+export const IconeSetaDir = (p) => (
+  <Svg {...p}>
+    <path d="m9 5 7 7-7 7" />
+  </Svg>
+);
+export const IconeDinheiro = (p) => (
+  <Svg {...p}>
+    <rect x="2.5" y="6" width="19" height="12" rx="1.5" />
+    <circle cx="12" cy="12" r="2.5" />
+    <path d="M6 9.5v5M18 9.5v5" />
+  </Svg>
+);

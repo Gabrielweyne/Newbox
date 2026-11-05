@@ -33,8 +33,10 @@ npm run dev
 Abra http://localhost:3000. Em desenvolvimento, o site repassa `/api` e `/media` para o Django
 na porta 8000 (veja `frontend/vite.config.js`).
 
-Telas: login, cadastro, esqueci/redefinir senha, painel da sede, boxes (cadastrar, alugar com
-comprovante, liberar, excluir), clientes e, para o administrador, aprovação de funcionários.
+Telas: login, cadastro, esqueci/redefinir senha, painel da sede (com vencimentos do dia e
+atrasos), boxes (cadastrar, alugar com comprovante e dia de vencimento, liberar, excluir),
+mensalidades (registrar pagamentos mês a mês), clientes e, para o administrador, aprovação de
+funcionários. O sininho no topo mostra quem pagou e quem não pagou nos dias de vencimento.
 
 Para gerar a versão de produção: `npm run build` (arquivos em `frontend/dist/`).
 
@@ -49,7 +51,8 @@ Testes: `python manage.py test boxes`
 |-----------|------------------------------------------------------------------------|
 | `Sede`    | nome (único), endereco                                                 |
 | `Cliente` | nome                                                                   |
-| `Box`     | sede, tamanho, valor, cliente (quem aluga), anexo_pagamento (arquivo) |
+| `Box`     | sede, tamanho, valor, cliente (quem aluga), anexo_pagamento (arquivo), dia_vencimento, alugado_em |
+| `Mensalidade` | box, cliente, competencia (mês), vencimento, valor, pago_em, comprovante, registrado_por |
 | `Funcionario` | usuario (login + e-mail), nome, cpf (único, validado), sede      |
 
 - **Sede 1 → N Box**: uma sede tem muitos boxes
@@ -120,6 +123,37 @@ Segurança:
 A senha passa pelas regras de senha do Django (mínimo 8 caracteres, não pode ser comum,
 só numérica ou parecida com o nome/CPF).
 
+## Mensalidades e avisos de vencimento
+
+- Ao alugar, escolhe-se o **dia de vencimento**: 5, 10, 15, 20, 25 ou 30 (em meses mais curtos,
+  o 30 vira o último dia do mês).
+- Cada box alugado gera **uma mensalidade por mês** automaticamente. A primeira já nasce paga,
+  com o comprovante anexado no aluguel.
+- Para registrar um pagamento, o funcionário anexa o comprovante (tela Mensalidades, painel ou
+  sininho). Um registro feito por engano pode ser desfeito.
+- Ao **liberar** um box, mensalidades ainda não vencidas são apagadas; as **atrasadas continuam**
+  registradas (o cliente ainda deve).
+- Mudar o valor ou o dia de vencimento de um box alugado atualiza as mensalidades futuras não pagas.
+
+### Avisos
+
+- **No site:** sininho com o número de pendências, faixa amarela nos dias de vencimento enquanto
+  alguém não pagou, e quadro "Vencem hoje / Em atraso" no painel.
+- **Por e-mail:** o comando abaixo envia, nos dias de vencimento, para os funcionários de cada
+  sede (e um resumo das duas sedes para os administradores) a lista de quem pagou, quem não pagou
+  e quem está atrasado. Nos outros dias ele não envia nada.
+
+```bash
+python manage.py avisar_vencimentos                       # roda o envio de hoje
+python manage.py avisar_vencimentos --data 2026-12-10     # simula outro dia
+```
+
+Ele precisa rodar **uma vez por dia** no servidor. No Linux, com `crontab -e`:
+
+```
+0 8 * * * cd /caminho/para/Newbox && .venv/bin/python manage.py avisar_vencimentos
+```
+
 ## Acesso por sede
 
 | Quem | O que pode |
@@ -139,6 +173,7 @@ Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 | `/api/boxes/`     | CRUD de boxes. Filtros: `?sede=`, `?cliente=`, `?alugado=true\|false`. `POST /api/boxes/<id>/liberar/` encerra o aluguel |
 | `/api/funcionarios/` | Consulta de funcionários. Filtros: `?sede=`, `?aprovado=true\|false`. Admin: `POST .../<id>/aprovar/` e `.../<id>/bloquear/` |
 | `/api/funcionarios/sedes/` | Aberto: lista as sedes para o formulário de cadastro |
+| `/api/mensalidades/` | Mensalidades. Filtros: `?competencia=AAAA-MM`, `?situacao=paga\|pendente\|atrasada\|vence_hoje\|a_vencer`, `?box=`, `?sede=`. `GET .../avisos/` (vencem hoje + atrasadas), `POST .../<id>/pagar/` (comprovante, pago_em), `POST .../<id>/desfazer/` |
 | `/admin/`         | Painel administrativo do Django                                           |
 
 O comprovante é enviado como arquivo (`multipart/form-data`) no campo `anexo_pagamento`

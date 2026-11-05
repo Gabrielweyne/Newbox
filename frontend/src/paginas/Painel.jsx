@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Banner } from "../componentes/Layout";
 import { IconeCaixa, IconeChave, IconeCofre } from "../componentes/Icones";
-import { Aviso, Carregando, Cartao } from "../componentes/ui";
+import RegistrarPagamento from "../componentes/RegistrarPagamento";
+import { Aviso, Carregando, Cartao, Etiqueta } from "../componentes/ui";
 import { listarTudo } from "../api";
 import { useAuth } from "../auth";
-import { formatarMoeda, primeiroNome } from "../formato";
+import { useAvisos } from "../avisos";
+import { formatarData, formatarMoeda, primeiroNome } from "../formato";
 
 function Numero({ icone: Icone, rotulo, valor, destaque, link }) {
   return (
@@ -60,6 +62,92 @@ function ResumoSede({ sede, receita, mostrarNome }) {
 }
 
 
+function LinhaAviso({ m, admin, aoPagar }) {
+  const paga = m.situacao === "paga";
+  return (
+    <li className="flex items-center justify-between gap-3 px-5 py-3">
+      <div className="min-w-0">
+        <p className="truncate font-medium text-marinho">{m.cliente_nome}</p>
+        <p className="text-xs text-marinho-claro/70">
+          Box #{m.box}
+          {admin && ` · ${m.sede_nome}`} · {formatarMoeda(m.valor)}
+          {m.situacao === "atrasada" && ` · venceu ${formatarData(m.vencimento)}`}
+        </p>
+      </div>
+      {paga ? (
+        <Etiqueta cor="verde">Pagou</Etiqueta>
+      ) : (
+        <button
+          onClick={() => aoPagar(m)}
+          className="shrink-0 rounded-md bg-roxo px-3 py-1.5 text-xs font-medium text-white hover:bg-roxo-600"
+        >
+          Registrar pagamento
+        </button>
+      )}
+    </li>
+  );
+}
+
+/** Quadro "quem pagou e quem não pagou" dos vencimentos de hoje + atrasadas. */
+function Vencimentos({ admin }) {
+  const { avisos, atualizar } = useAvisos();
+  const [pagando, setPagando] = useState(null);
+  if (!avisos || (!avisos.vencem_hoje.length && !avisos.atrasadas.length)) return null;
+  const hoje = [...avisos.vencem_hoje].sort((a, b) => (a.situacao === "paga") - (b.situacao === "paga"));
+  const pagaram = hoje.filter((m) => m.situacao === "paga").length;
+
+  return (
+    <section className="grid gap-4 lg:grid-cols-2">
+      {hoje.length > 0 && (
+        <Cartao className="overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-roxo-100 px-5 py-4">
+            <div>
+              <h2 className="font-semibold text-marinho">Vencem hoje</h2>
+              <p className="text-xs text-marinho-claro/70">
+                {pagaram} de {hoje.length} já pagaram
+              </p>
+            </div>
+            <Link to="/mensalidades" className="text-sm text-roxo hover:underline">
+              Ver todas
+            </Link>
+          </div>
+          <ul className="divide-y divide-roxo-100">
+            {hoje.map((m) => (
+              <LinhaAviso key={m.id} m={m} admin={admin} aoPagar={setPagando} />
+            ))}
+          </ul>
+        </Cartao>
+      )}
+      {avisos.atrasadas.length > 0 && (
+        <Cartao className="overflow-hidden ring-red-100">
+          <div className="flex items-center justify-between gap-3 border-b border-red-100 bg-red-50/60 px-5 py-4">
+            <div>
+              <h2 className="font-semibold text-red-800">Em atraso</h2>
+              <p className="text-xs text-red-800/70">Mensalidades vencidas e não pagas</p>
+            </div>
+            <Link to="/mensalidades?aba=atrasada" className="text-sm text-roxo hover:underline">
+              Ver todas
+            </Link>
+          </div>
+          <ul className="divide-y divide-roxo-100">
+            {avisos.atrasadas.map((m) => (
+              <LinhaAviso key={m.id} m={m} admin={admin} aoPagar={setPagando} />
+            ))}
+          </ul>
+        </Cartao>
+      )}
+      <RegistrarPagamento
+        mensalidade={pagando}
+        aoFechar={() => setPagando(null)}
+        aoSalvar={() => {
+          setPagando(null);
+          atualizar();
+        }}
+      />
+    </section>
+  );
+}
+
 export default function Painel() {
   const { usuario } = useAuth();
   const [sedes, setSedes] = useState(null);
@@ -87,6 +175,7 @@ export default function Painel() {
       />
       <div className="mx-auto max-w-6xl space-y-10 px-4 py-10">
         <Aviso>{erro}</Aviso>
+        <Vencimentos admin={usuario.admin} />
         {!sedes && !erro && <Carregando />}
         {sedes?.map((s) => (
           <ResumoSede key={s.id} sede={s} receita={receitas[s.id] || 0} mostrarNome={sedes.length > 1} />

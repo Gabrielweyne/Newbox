@@ -8,6 +8,7 @@ import Clientes from "./paginas/Clientes";
 import EsqueciSenha from "./paginas/EsqueciSenha";
 import Funcionarios from "./paginas/Funcionarios";
 import Login from "./paginas/Login";
+import Mensalidades from "./paginas/Mensalidades";
 import Painel from "./paginas/Painel";
 import RedefinirSenha from "./paginas/RedefinirSenha";
 
@@ -51,6 +52,7 @@ export default function App() {
         <Route index element={<Painel />} />
         <Route path="boxes" element={<Boxes />} />
         <Route path="clientes" element={<Clientes />} />
+        <Route path="mensalidades" element={<Mensalidades />} />
         <Route path="funcionarios" element={<Protegida soAdmin><Funcionarios /></Protegida>} />
         <Route path="*" element={<NaoEncontrada />} />
       </Route>

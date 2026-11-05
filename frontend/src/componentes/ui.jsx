@@ -103,6 +103,7 @@ export function Etiqueta({ cor = "roxo", children }) {
     verde: "bg-emerald-100 text-emerald-800",
     cinza: "bg-slate-100 text-slate-700",
     amarelo: "bg-amber-100 text-amber-800",
+    vermelho: "bg-red-100 text-red-800",
   };
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${estilos[cor]}`}>
@@ -124,6 +125,9 @@ export function Modal({ aberto, titulo, aoFechar, children, largura = "max-w-lg"
     <dialog
       ref={ref}
       onCancel={(e) => {
+        // O "cancelar" do seletor de arquivos também chega aqui (o evento sobe
+        // a partir do <input type="file">). Só fecha se veio da própria janela (Esc).
+        if (e.target !== ref.current) return;
         e.preventDefault();
         aoFechar();
       }}

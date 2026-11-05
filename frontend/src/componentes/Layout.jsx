@@ -1,15 +1,18 @@
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import { Link, NavLink, Outlet } from "react-router";
 import logo from "../assets/logo.png";
 import logoBranco from "../assets/logo-branco.png";
 import { useAuth } from "../auth";
+import { AvisosProvider, useAvisos } from "../avisos";
 import { primeiroNome } from "../formato";
-import { IconeCaixa, IconeCasa, IconeCracha, IconeMenu, IconePessoas, IconeSair, IconeX } from "./Icones";
+import { IconeCaixa, IconeCalendario, IconeCasa, IconeCracha, IconeMenu, IconePessoas, IconeSair, IconeX } from "./Icones";
+import Sino from "./Sino";
 
 function linksDo(usuario) {
   const links = [
     { para: "/", rotulo: "Painel", icone: IconeCasa, fim: true },
     { para: "/boxes", rotulo: "Boxes", icone: IconeCaixa },
+    { para: "/mensalidades", rotulo: "Mensalidades", icone: IconeCalendario },
     { para: "/clientes", rotulo: "Clientes", icone: IconePessoas },
   ];
   if (usuario.admin) links.push({ para: "/funcionarios", rotulo: "Funcionários", icone: IconeCracha });
@@ -17,6 +20,34 @@ function linksDo(usuario) {
 }
 
 export default function Layout() {
+  return (
+    <AvisosProvider>
+      <Estrutura />
+    </AvisosProvider>
+  );
+}
+
+/** Faixa de lembrete nos dias de vencimento enquanto houver quem não pagou. */
+function LembreteDoDia() {
+  const { avisos } = useAvisos();
+  if (!avisos?.dia_de_vencimento) return null;
+  const faltam = avisos.vencem_hoje.filter((m) => m.situacao !== "paga").length;
+  if (!faltam) return null;
+  return (
+    <div className="bg-amber-50 text-amber-900 ring-1 ring-amber-200">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
+        <p>
+          <strong>Hoje é dia de vencimento.</strong> {faltam} cliente{faltam > 1 ? "s ainda não pagaram" : " ainda não pagou"}.
+        </p>
+        <Link to="/mensalidades?aba=pendentes" className="font-medium underline-offset-2 hover:underline">
+          Ver quem falta
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function Estrutura() {
   const { usuario, sair } = useAuth();
   const [menuAberto, setMenuAberto] = useState(false);
   const links = linksDo(usuario);
@@ -44,7 +75,12 @@ export default function Layout() {
             ))}
           </nav>
 
+          <div className="ml-auto flex items-center gap-1 md:ml-0 md:hidden">
+            <Sino />
+          </div>
+
           <div className="hidden items-center gap-3 md:flex">
+            <Sino />
             <div className="text-right leading-tight">
               <p className="text-sm font-medium">{primeiroNome(nome)}</p>
               <p className="text-xs text-roxo">{local}</p>
@@ -86,6 +122,7 @@ export default function Layout() {
           </nav>
         )}
       </header>
+      <LembreteDoDia />
 
       <main className="flex-1">
         <Outlet />

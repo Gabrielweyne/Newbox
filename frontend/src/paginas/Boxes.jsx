@@ -15,7 +15,7 @@ import {
 import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Selecao, Vazio } from "../componentes/ui";
 import { api, ErroApi, listarTudo } from "../api";
 import { useAuth } from "../auth";
-import { formatarMoeda } from "../formato";
+import { DIAS_VENCIMENTO, formatarMoeda } from "../formato";
 
 /* ---------- Formulário de box (novo / editar) ---------- */
 
@@ -24,6 +24,7 @@ function FormBox({ box, sedes, admin, aoSalvar, aoFechar }) {
     sede: box?.sede ?? (sedes.length === 1 ? sedes[0].id : ""),
     tamanho: box?.tamanho ?? "",
     valor: box?.valor ?? "",
+    dia_vencimento: box?.dia_vencimento ?? "",
   });
   const [erro, setErro] = useState(null);
   const [enviando, setEnviando] = useState(false);
@@ -35,6 +36,7 @@ function FormBox({ box, sedes, admin, aoSalvar, aoFechar }) {
     setErro(null);
     const corpo = { tamanho: dados.tamanho, valor: dados.valor };
     if (admin) corpo.sede = dados.sede;
+    if (box?.alugado) corpo.dia_vencimento = dados.dia_vencimento;
     try {
       const salvo = box
         ? await api(`/boxes/${box.id}/`, { metodo: "PATCH", corpo })
@@ -78,7 +80,22 @@ function FormBox({ box, sedes, admin, aoSalvar, aoFechar }) {
         value={dados.valor}
         onChange={mudar("valor")}
         erro={erro?.campo("valor")}
+        ajuda={box?.alugado ? "Mensalidades futuras ainda não pagas passam a usar o novo valor." : undefined}
       />
+      {box?.alugado && (
+        <Selecao
+          rotulo="Dia de vencimento"
+          value={dados.dia_vencimento}
+          onChange={mudar("dia_vencimento")}
+          erro={erro?.campo("dia_vencimento")}
+        >
+          {DIAS_VENCIMENTO.map((d) => (
+            <option key={d} value={d}>
+              Dia {d}
+            </option>
+          ))}
+        </Selecao>
+      )}
       <div className="flex justify-end gap-2 pt-2">
         <Botao type="button" variante="fantasma" onClick={aoFechar}>
           Cancelar
@@ -98,6 +115,7 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
   const [cliente, setCliente] = useState("");
   const [novoNome, setNovoNome] = useState("");
   const [arquivo, setArquivo] = useState(null);
+  const [dia, setDia] = useState("");
   const [erro, setErro] = useState(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -112,6 +130,7 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
     setErro(null);
     if (!cliente) return setErro(new ErroApi(400, { cliente: ["Escolha o cliente."] }));
     if (novo && !novoNome.trim()) return setErro(new ErroApi(400, { nome: ["Informe o nome do cliente."] }));
+    if (!dia) return setErro(new ErroApi(400, { dia_vencimento: ["Escolha o dia de vencimento."] }));
     if (!arquivo) return setErro(new ErroApi(400, { anexo_pagamento: ["Anexe o comprovante de pagamento."] }));
     setEnviando(true);
     try {
@@ -120,6 +139,7 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
       const corpo = new FormData();
       corpo.append("cliente", idCliente);
       corpo.append("anexo_pagamento", arquivo);
+      corpo.append("dia_vencimento", dia);
       aoSalvar(await api(`/boxes/${box.id}/`, { metodo: "PATCH", corpo }));
     } catch (err) {
       setErro(err);
@@ -129,7 +149,7 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
   }
 
   if (!clientes && !erro) return <Carregando texto="Carregando clientes..." />;
-  const campos = ["cliente", "nome", "anexo_pagamento"];
+  const campos = ["cliente", "nome", "anexo_pagamento", "dia_vencimento"];
 
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
@@ -163,8 +183,25 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
           autoFocus
         />
       )}
+      <Selecao
+        rotulo="Dia de vencimento"
+        value={dia}
+        onChange={(e) => {
+          setDia(e.target.value);
+          setErro(null);
+        }}
+        erro={erro?.campo("dia_vencimento")}
+        ajuda="A mensalidade vence todo mês neste dia. Em fevereiro, o dia 30 vira o último dia do mês."
+      >
+        <option value="">Selecione</option>
+        {DIAS_VENCIMENTO.map((d) => (
+          <option key={d} value={d}>
+            Todo dia {d}
+          </option>
+        ))}
+      </Selecao>
       <div>
-        <p className="mb-1.5 text-sm font-medium">Comprovante de pagamento</p>
+        <p className="mb-1.5 text-sm font-medium">Comprovante do 1º pagamento</p>
         <label
           className={`flex cursor-pointer items-center gap-3 rounded-md border border-dashed px-4 py-4 text-sm transition hover:bg-roxo-50 ${
             erro?.campo("anexo_pagamento") ? "border-red-400" : "border-roxo-300"
@@ -201,6 +238,16 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
 }
 
 /* ---------- Página ---------- */
+
+function Situacao({ box }) {
+  if (!box.alugado) return <Etiqueta cor="verde">Livre</Etiqueta>;
+  return (
+    <span className="inline-flex flex-wrap gap-1">
+      <Etiqueta>Alugado</Etiqueta>
+      {box.em_atraso && <Etiqueta cor="vermelho">Em atraso</Etiqueta>}
+    </span>
+  );
+}
 
 const FILTROS = [
   { valor: "todos", rotulo: "Todos" },
@@ -377,9 +424,18 @@ export default function Boxes() {
                       <td className="px-5 py-3">{b.tamanho}</td>
                       <td className="px-5 py-3 tabular-nums">{formatarMoeda(b.valor)}</td>
                       <td className="px-5 py-3">
-                        {b.alugado ? <Etiqueta>Alugado</Etiqueta> : <Etiqueta cor="verde">Livre</Etiqueta>}
+                        <Situacao box={b} />
                       </td>
-                      <td className="px-5 py-3">{b.cliente_nome || <span className="text-marinho-claro/40">—</span>}</td>
+                      <td className="px-5 py-3">
+                        {b.cliente_nome ? (
+                          <>
+                            <p>{b.cliente_nome}</p>
+                            <p className="text-xs text-marinho-claro/60">Vence todo dia {b.dia_vencimento}</p>
+                          </>
+                        ) : (
+                          <span className="text-marinho-claro/40">—</span>
+                        )}
+                      </td>
                       <td className="px-5 py-3">
                         <Acoes box={b} abrir={abrir} />
                       </td>
@@ -398,9 +454,13 @@ export default function Boxes() {
                           Box #{b.id} <span className="font-normal text-marinho-claro/70">· {b.tamanho}</span>
                         </p>
                         <p className="text-sm tabular-nums">{formatarMoeda(b.valor)}{usuario.admin && ` · ${b.sede_nome}`}</p>
-                        {b.cliente_nome && <p className="mt-1 text-sm text-roxo">{b.cliente_nome}</p>}
+                        {b.cliente_nome && (
+                          <p className="mt-1 text-sm text-roxo">
+                            {b.cliente_nome} <span className="text-xs text-marinho-claro/60">· vence dia {b.dia_vencimento}</span>
+                          </p>
+                        )}
                       </div>
-                      {b.alugado ? <Etiqueta>Alugado</Etiqueta> : <Etiqueta cor="verde">Livre</Etiqueta>}
+                      <Situacao box={b} />
                     </div>
                     <Acoes box={b} abrir={abrir} />
                   </li>
