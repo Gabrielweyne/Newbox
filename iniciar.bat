@@ -8,7 +8,9 @@ echo   Newbox - preparando o sistema para teste local
 echo ==================================================
 echo.
 
-where python >nul 2>nul
+set "PY=python"
+python --version >nul 2>nul || set "PY=py"
+%PY% --version >nul 2>nul
 if errorlevel 1 (
   echo [ERRO] Python não encontrado.
   echo Instale o Python 3.12 em https://www.python.org/downloads/
@@ -31,7 +33,7 @@ if not exist ".env" (
 
 if not exist ".venv\Scripts\python.exe" (
   echo [1/5] Criando ambiente Python...
-  python -m venv .venv || goto erro
+  %PY% -m venv .venv || goto erro
 )
 echo [2/5] Instalando dependências do Python...
 ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r requirements.txt || goto erro
@@ -46,20 +48,18 @@ call npm install --no-fund --no-audit --loglevel=error || (popd & goto erro)
 popd
 
 echo [5/5] Iniciando...
-start "Newbox - Servidor (Django)" cmd /k ".venv\Scripts\python.exe manage.py runserver 8000"
-start "Newbox - Site (React)" cmd /k "cd frontend && npm run dev"
+start "Newbox" cmd /k "%PY% rodar.py"
 
 echo.
-echo Aguarde alguns segundos: o navegador vai abrir em http://localhost:3000
+echo Servidor e site rodam juntos na janela "Newbox". O navegador abre sozinho.
 echo.
 echo Para entrar (senha de todos: Newbox#2026):
 echo   Administrador ........ CPF 111.444.777-35
 echo   Ana Lima (Cocó) ...... CPF 529.982.247-25
 echo   Bruno Melo (Cambeba) . CPF 390.533.447-05
 echo.
-echo Para desligar, feche as duas janelas pretas que abriram.
-timeout /t 6 >nul
-start "" http://localhost:3000
+echo Para desligar, feche a janela "Newbox" (ou aperte Ctrl+C nela).
+echo Nas proximas vezes, rode so: py rodar.py
 pause
 exit /b 0
 

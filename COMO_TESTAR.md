@@ -48,6 +48,16 @@ sininho e os avisos funcionando.
 
 > Neste modo de teste o sistema abre só no próprio computador (não pelo celular).
 
+## Nas próximas vezes
+
+Depois da primeira instalação, para ligar servidor e site **juntos numa só janela**:
+
+```
+py rodar.py
+```
+
+(Mac/Linux: `python3 rodar.py`.) No VS Code: **Terminal → Executar Tarefa de Compilação** (ou Ctrl+Shift+B). Para desligar, Ctrl+C.
+
 ## Comandos úteis
 
 Recriar os dados de exemplo do zero (apaga tudo o que você testou). No Windows, rode no

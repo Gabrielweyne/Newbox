@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Newbox: iniciar tudo",
+      "type": "shell",
+      "command": "py rodar.py",
+      "linux": { "command": "python3 rodar.py" },
+      "osx": { "command": "python3 rodar.py" },
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    }
+  ]
+}
