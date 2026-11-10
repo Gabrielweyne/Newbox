@@ -654,3 +654,23 @@ class MensalidadesTests(APITestCase):
         self.assertIn("Carlos", email.body)
         self.assertIn("(1 pendente)", email.subject)
         self.assertIn("https://site.test/mensalidades", email.body)
+
+
+@override_settings(DEBUG=True, MEDIA_ROOT="/tmp/newbox-test-media")
+class DadosExemploTests(APITestCase):
+    def test_cria_e_recria(self):
+        call_command("dados_exemplo", stdout=StringIO())
+        self.assertEqual(Box.objects.count(), 12)
+        self.assertEqual(Funcionario.objects.filter(usuario__is_active=False).count(), 1)
+        self.assertTrue(Mensalidade.objects.filter(pago_em__isnull=True, vencimento__lt=cobranca.hoje()).exists())
+        r = self.client.post("/api/auth/login/", {"cpf": "529.982.247-25", "senha": "Newbox#2026"})
+        self.assertEqual(r.status_code, 200)
+        with self.assertRaises(Exception):
+            call_command("dados_exemplo", stdout=StringIO())
+        call_command("dados_exemplo", apagar=True, stdout=StringIO())
+        self.assertEqual(Box.objects.count(), 12)
+
+    @override_settings(DEBUG=False)
+    def test_nao_roda_em_producao(self):
+        with self.assertRaises(Exception):
+            call_command("dados_exemplo", stdout=StringIO())

@@ -5,6 +5,12 @@ Sistema interno da Newbox (aluguel de boxes):
 - `boxes/`, `config/`: API em **Django REST Framework** + **PostgreSQL**
 - `frontend/`: site dos funcionários em **React** (Vite + Tailwind), com o visual de newboxbrasil.com.br
 
+## Testar rápido no computador
+
+Veja **[COMO_TESTAR.md](COMO_TESTAR.md)**: um clique em `iniciar.bat` (Windows) ou
+`./iniciar.sh` (Mac/Linux) instala tudo, cria dados de exemplo e abre o site. Usa SQLite, sem
+precisar instalar o PostgreSQL.
+
 ## Como rodar a API
 
 ```bash
