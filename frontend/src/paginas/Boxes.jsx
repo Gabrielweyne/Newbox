@@ -17,6 +17,7 @@ import { api, ErroApi, listarTudo } from "../api";
 import { useAuth } from "../auth";
 import { useAvisos } from "../avisos";
 import { DIAS_VENCIMENTO, formatarMoeda } from "../formato";
+import { formatarTelefone } from "../whatsapp";
 
 /* ---------- Formulário de box (novo / editar) ---------- */
 
@@ -115,6 +116,7 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
   const [clientes, setClientes] = useState(null);
   const [cliente, setCliente] = useState("");
   const [novoNome, setNovoNome] = useState("");
+  const [novoTelefone, setNovoTelefone] = useState("");
   const [arquivo, setArquivo] = useState(null);
   const [dia, setDia] = useState("");
   const [erro, setErro] = useState(null);
@@ -136,7 +138,9 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
     setEnviando(true);
     try {
       let idCliente = cliente;
-      if (novo) idCliente = (await api("/clientes/", { metodo: "POST", corpo: { nome: novoNome } })).id;
+      if (novo) {
+        idCliente = (await api("/clientes/", { metodo: "POST", corpo: { nome: novoNome, telefone: novoTelefone } })).id;
+      }
       const corpo = new FormData();
       corpo.append("cliente", idCliente);
       corpo.append("anexo_pagamento", arquivo);
@@ -150,7 +154,7 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
   }
 
   if (!clientes && !erro) return <Carregando texto="Carregando clientes..." />;
-  const campos = ["cliente", "nome", "anexo_pagamento", "dia_vencimento"];
+  const campos = ["cliente", "nome", "telefone", "anexo_pagamento", "dia_vencimento"];
 
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
@@ -182,6 +186,16 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
           onChange={(e) => setNovoNome(e.target.value)}
           erro={erro?.campo("nome")}
           autoFocus
+        />
+      )}
+      {novo && (
+        <Campo
+          rotulo="WhatsApp do novo cliente"
+          inputMode="tel"
+          placeholder="(85) 99999-9999"
+          value={novoTelefone}
+          onChange={(e) => setNovoTelefone(formatarTelefone(e.target.value))}
+          erro={erro?.campo("telefone")}
         />
       )}
       <Selecao

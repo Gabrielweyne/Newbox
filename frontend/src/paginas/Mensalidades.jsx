@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import Confirmar from "../componentes/Confirmar";
+import BotaoCobrar from "../componentes/BotaoCobrar";
 import { Banner } from "../componentes/Layout";
 import RegistrarPagamento from "../componentes/RegistrarPagamento";
 import { IconeCalendario, IconeClipe, IconeDinheiro, IconeSetaDir, IconeSetaEsq } from "../componentes/Icones";
@@ -39,9 +40,12 @@ function Acoes({ m, pagar, desfazer }) {
   const btn = "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition";
   if (m.situacao !== "paga") {
     return (
-      <button onClick={() => pagar(m)} className={`${btn} bg-roxo text-white hover:bg-roxo-600`}>
-        <IconeDinheiro className="size-4" /> Registrar pagamento
-      </button>
+      <div className="flex flex-wrap justify-end gap-1.5">
+        {m.situacao !== "a_vencer" && <BotaoCobrar m={m} />}
+        <button onClick={() => pagar(m)} className={`${btn} bg-roxo text-white hover:bg-roxo-600`}>
+          <IconeDinheiro className="size-4" /> Registrar pagamento
+        </button>
+      </div>
     );
   }
   return (
@@ -182,7 +186,7 @@ export default function Mensalidades() {
                   <li key={m.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <p className="font-medium text-marinho">
-                        {m.cliente_nome}{" "}
+                        <Link to={`/clientes/${m.cliente}`} className="hover:text-roxo">{m.cliente_nome}</Link>{" "}
                         <span className="font-normal text-marinho-claro/60">
                           · Box #{m.box} ({m.box_tamanho}){usuario.admin && ` · ${m.sede_nome}`}
                         </span>

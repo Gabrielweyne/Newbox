@@ -26,3 +26,16 @@ export function mensagemVaga(interessado, vaga) {
     `Ainda tem interesse?`
   );
 }
+
+/** Mensagem educada de cobrança de mensalidade. */
+export function mensagemCobranca(m) {
+  const nome = String(m.cliente_nome || "").trim().split(/\s+/)[0];
+  const [a, mes, d] = String(m.vencimento).split("-");
+  const valor = Number(m.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const quando = m.situacao === "vence_hoje" ? "que vence hoje" : `que venceu em ${d}/${mes}/${a}`;
+  return (
+    `Olá, ${nome}! Aqui é da Newbox, unidade ${m.sede_nome}.\n` +
+    `Passando para lembrar da mensalidade do box #${m.box} (${m.box_tamanho}), no valor de ${valor}, ${quando}.\n` +
+    `Se já pagou, é só nos enviar o comprovante por aqui. Obrigado!`
+  );
+}

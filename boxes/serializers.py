@@ -34,7 +34,13 @@ class ClienteSerializer(serializers.ModelSerializer):
         model = Cliente
         fields = ["id", "nome", "telefone", "cpf", "email", "total_boxes", "atrasadas"]
         extra_kwargs = {
-            "telefone": {"max_length": 25, "required": True, "allow_blank": False},
+            "telefone": {
+                "max_length": 25, "required": True, "allow_blank": False,
+                "error_messages": {
+                    "blank": "Informe o WhatsApp do cliente.",
+                    "required": "Informe o WhatsApp do cliente.",
+                },
+            },
             "cpf": {"max_length": 14, "required": False},
             "email": {"required": False},
         }

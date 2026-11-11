@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Banner } from "../componentes/Layout";
 import { IconeCaixa, IconeChave, IconeCofre } from "../componentes/Icones";
+import BotaoCobrar from "../componentes/BotaoCobrar";
 import Disponibilidade, { useDisponibilidade } from "../componentes/Disponibilidade";
 import { IconeWhatsapp } from "../componentes/Icones";
 import RegistrarPagamento from "../componentes/RegistrarPagamento";
@@ -70,7 +71,9 @@ function LinhaAviso({ m, admin, aoPagar }) {
   return (
     <li className="flex items-center justify-between gap-3 px-5 py-3">
       <div className="min-w-0">
-        <p className="truncate font-medium text-marinho">{m.cliente_nome}</p>
+        <Link to={`/clientes/${m.cliente}`} className="block truncate font-medium text-marinho hover:text-roxo">
+          {m.cliente_nome}
+        </Link>
         <p className="text-xs text-marinho-claro/70">
           Box #{m.box}
           {admin && ` · ${m.sede_nome}`} · {formatarMoeda(m.valor)}
@@ -80,12 +83,15 @@ function LinhaAviso({ m, admin, aoPagar }) {
       {paga ? (
         <Etiqueta cor="verde">Pagou</Etiqueta>
       ) : (
-        <button
-          onClick={() => aoPagar(m)}
-          className="shrink-0 rounded-md bg-roxo px-3 py-1.5 text-xs font-medium text-white hover:bg-roxo-600"
-        >
-          Registrar pagamento
-        </button>
+        <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+          <BotaoCobrar m={m} compacto />
+          <button
+            onClick={() => aoPagar(m)}
+            className="rounded-md bg-roxo px-2.5 py-1.5 text-xs font-medium text-white hover:bg-roxo-600"
+          >
+            Registrar pagamento
+          </button>
+        </div>
       )}
     </li>
   );

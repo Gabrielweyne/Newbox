@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { api } from "../api";
+import { useAvisos } from "../avisos";
 import { formatarData, formatarMoeda } from "../formato";
 import { IconeClipe } from "./Icones";
 import { Aviso, Botao, Campo, Modal } from "./ui";
 
-const hojeIso = () => {
+// Data local do navegador (só usada se o servidor ainda não informou o "hoje")
+const hojeNavegador = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
@@ -19,8 +21,10 @@ export default function RegistrarPagamento({ mensalidade, aoFechar, aoSalvar }) 
 }
 
 function Formulario({ m, aoFechar, aoSalvar }) {
+  // "Hoje" vem do servidor (fuso de Fortaleza), para não depender do relógio/fuso do computador
+  const hoje = useAvisos()?.avisos?.hoje || hojeNavegador();
   const [arquivo, setArquivo] = useState(null);
-  const [data, setData] = useState(hojeIso());
+  const [data, setData] = useState(hoje);
   const [erro, setErro] = useState(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -54,7 +58,7 @@ function Formulario({ m, aoFechar, aoSalvar }) {
       <Campo
         rotulo="Data do pagamento"
         type="date"
-        max={hojeIso()}
+        max={hoje}
         value={data}
         onChange={(e) => setData(e.target.value)}
         erro={erro?.campo("pago_em")}

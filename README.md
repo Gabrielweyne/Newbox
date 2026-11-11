@@ -57,7 +57,7 @@ Testes: `python manage.py test boxes`
 | Model     | Campos                                                                 |
 |-----------|------------------------------------------------------------------------|
 | `Sede`    | nome (único), endereco                                                 |
-| `Cliente` | nome                                                                   |
+| `Cliente` | nome, telefone (WhatsApp, obrigatório para novos), cpf (opcional, validado, único), email (opcional) |
 | `Box`     | sede, tamanho, valor, cliente (quem aluga), anexo_pagamento (arquivo), dia_vencimento, alugado_em |
 | `Mensalidade` | box, cliente, competencia (mês), vencimento, valor, pago_em, comprovante, registrado_por |
 | `Funcionario` | usuario (login + e-mail), nome, cpf (único, validado), sede      |
@@ -137,6 +137,15 @@ Em `/`: apresentação da Newbox, tamanhos disponíveis por unidade (em tempo re
 **WhatsApp** com a mensagem pronta (nome, unidade, tamanho, prazo). Contatos configuráveis no
 `.env`: `NEWBOX_WHATSAPP` (só números, com 55 + DDD), `NEWBOX_TELEFONE`, `NEWBOX_EMAIL`.
 
+## Clientes e cobrança pelo WhatsApp
+
+- Cliente novo precisa de **WhatsApp**; CPF e e-mail são opcionais. Clientes antigos sem
+  WhatsApp aparecem com o aviso "Sem WhatsApp" para completar o cadastro.
+- **Ficha do cliente** (`/clientes/<id>`): contato, total em atraso, boxes alugados e histórico
+  de mensalidades, com registrar pagamento e cobrar.
+- Mensalidades **atrasadas** ou que **vencem hoje** têm o botão **Cobrar no WhatsApp**, com a
+  mensagem pronta (box, valor e vencimento), no painel, na página de mensalidades e na ficha.
+
 ## Lista de espera e vagas nas duas sedes
 
 - Quando um cliente chamar e não houver box livre, o funcionário anota em **Lista de espera**
@@ -195,7 +204,7 @@ Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 | Rota              | Descrição                                                                 |
 |-------------------|---------------------------------------------------------------------------|
 | `/api/sedes/`     | CRUD de sedes. Inclui `numero_de_box`, `alugados`, `nao_alugados` (calculados) |
-| `/api/clientes/`  | CRUD de clientes. Busca: `?busca=`                                        |
+| `/api/clientes/`  | CRUD de clientes. Busca por nome, WhatsApp ou CPF: `?busca=`. `GET .../<id>/ficha/` (boxes e mensalidades do cliente) |
 | `/api/boxes/`     | CRUD de boxes. Filtros: `?sede=`, `?cliente=`, `?alugado=true\|false`. `POST /api/boxes/<id>/liberar/` encerra o aluguel |
 | `/api/funcionarios/` | Consulta de funcionários. Filtros: `?sede=`, `?aprovado=true\|false`. Admin: `POST .../<id>/aprovar/` e `.../<id>/bloquear/` |
 | `/api/funcionarios/sedes/` | Aberto: lista as sedes para o formulário de cadastro |

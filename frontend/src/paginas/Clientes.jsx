@@ -2,24 +2,35 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import Confirmar from "../componentes/Confirmar";
 import { Banner } from "../componentes/Layout";
-import { IconeBusca, IconeLapis, IconeLixo, IconeMais, IconePessoas } from "../componentes/Icones";
-import { Aviso, Botao, Campo, Carregando, Cartao, Modal, Vazio } from "../componentes/ui";
+import { IconeBusca, IconeLapis, IconeLixo, IconeMais, IconePessoas, IconeWhatsapp } from "../componentes/Icones";
+import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Vazio } from "../componentes/ui";
 import { api, listarTudo } from "../api";
+import { formatarCpf } from "../formato";
+import { formatarTelefone, linkWhatsapp } from "../whatsapp";
 
-function FormCliente({ cliente, aoSalvar, aoFechar }) {
-  const [nome, setNome] = useState(cliente?.nome ?? "");
+export function FormCliente({ cliente, aoSalvar, aoFechar }) {
+  const [dados, setDados] = useState({
+    nome: cliente?.nome ?? "",
+    telefone: formatarTelefone(cliente?.telefone ?? ""),
+    cpf: formatarCpf(cliente?.cpf ?? ""),
+    email: cliente?.email ?? "",
+  });
   const [erro, setErro] = useState(null);
   const [enviando, setEnviando] = useState(false);
+  const mudar = (c) => (e) => {
+    const v = e.target.value;
+    setDados((d) => ({ ...d, [c]: c === "telefone" ? formatarTelefone(v) : c === "cpf" ? formatarCpf(v) : v }));
+  };
 
   async function enviar(e) {
     e.preventDefault();
     setEnviando(true);
     setErro(null);
     try {
-      await (cliente
-        ? api(`/clientes/${cliente.id}/`, { metodo: "PATCH", corpo: { nome } })
-        : api("/clientes/", { metodo: "POST", corpo: { nome } }));
-      aoSalvar();
+      const salvo = await (cliente
+        ? api(`/clientes/${cliente.id}/`, { metodo: "PATCH", corpo: dados })
+        : api("/clientes/", { metodo: "POST", corpo: dados }));
+      aoSalvar(salvo);
     } catch (err) {
       setErro(err);
     } finally {
@@ -29,8 +40,27 @@ function FormCliente({ cliente, aoSalvar, aoFechar }) {
 
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
-      {erro && !erro.campo("nome") && <Aviso>{erro.message}</Aviso>}
-      <Campo rotulo="Nome do cliente" value={nome} onChange={(e) => setNome(e.target.value)} erro={erro?.campo("nome")} autoFocus />
+      {erro && !["nome", "telefone", "cpf", "email"].some((c) => erro.campo(c)) && <Aviso>{erro.message}</Aviso>}
+      <Campo rotulo="Nome do cliente" value={dados.nome} onChange={mudar("nome")} erro={erro?.campo("nome")} autoFocus />
+      <Campo
+        rotulo="WhatsApp"
+        inputMode="tel"
+        placeholder="(85) 99999-9999"
+        value={dados.telefone}
+        onChange={mudar("telefone")}
+        erro={erro?.campo("telefone")}
+      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Campo
+          rotulo="CPF (opcional)"
+          inputMode="numeric"
+          placeholder="000.000.000-00"
+          value={dados.cpf}
+          onChange={mudar("cpf")}
+          erro={erro?.campo("cpf")}
+        />
+        <Campo rotulo="E-mail (opcional)" type="email" value={dados.email} onChange={mudar("email")} erro={erro?.campo("email")} />
+      </div>
       <div className="flex justify-end gap-2 pt-2">
         <Botao type="button" variante="fantasma" onClick={aoFechar}>
           Cancelar
@@ -56,7 +86,12 @@ export default function Clientes() {
 
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    return (clientes || []).filter((c) => c.nome.toLowerCase().includes(termo));
+    const digitos = termo.replace(/\D/g, "");
+    return (clientes || []).filter(
+      (c) =>
+        c.nome.toLowerCase().includes(termo) ||
+        (digitos.length >= 3 && (c.telefone.includes(digitos) || c.cpf.includes(digitos)))
+    );
   }, [clientes, busca]);
 
   const fechar = () => setJanela(null);
@@ -75,7 +110,7 @@ export default function Clientes() {
           <IconeBusca className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-marinho-claro/50" />
           <input
             type="search"
-            placeholder="Buscar pelo nome"
+            placeholder="Buscar por nome, WhatsApp ou CPF"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             className="w-full rounded-md border border-roxo-200 bg-white py-2 pr-3 pl-9 text-sm focus:border-roxo focus:ring-2 focus:ring-roxo-100 focus:outline-none"
@@ -99,19 +134,29 @@ export default function Clientes() {
                       {c.nome.trim()[0]?.toUpperCase()}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-marinho">{c.nome}</p>
+                      <Link to={`/clientes/${c.id}`} className="block truncate font-medium text-marinho hover:text-roxo">
+                        {c.nome} {c.atrasadas > 0 && <Etiqueta cor="vermelho">{c.atrasadas} em atraso</Etiqueta>}
+                      </Link>
                       <p className="text-xs text-marinho-claro/60">
-                        {c.total_boxes === 0 ? (
-                          "Nenhum box alugado"
-                        ) : (
-                          <Link to={`/boxes?status=alugados`} className="hover:text-roxo">
-                            {c.total_boxes} box{c.total_boxes > 1 ? "es" : ""} alugado{c.total_boxes > 1 ? "s" : ""}
-                          </Link>
-                        )}
+                        {c.telefone ? formatarTelefone(c.telefone) : <span className="text-amber-700">Sem WhatsApp</span>} ·{" "}
+                        {c.total_boxes === 0
+                          ? "nenhum box alugado"
+                          : `${c.total_boxes} box${c.total_boxes > 1 ? "es" : ""} alugado${c.total_boxes > 1 ? "s" : ""}`}
                       </p>
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1">
+                    {c.telefone && (
+                      <a
+                        href={linkWhatsapp(c.telefone)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-md p-2 text-[#1ebe5a] hover:bg-emerald-50"
+                        aria-label={`WhatsApp de ${c.nome}`}
+                      >
+                        <IconeWhatsapp className="size-4" />
+                      </a>
+                    )}
                     <button
                       onClick={() => setJanela({ tipo: "editar", cliente: c })}
                       className="rounded-md p-2 text-marinho-claro hover:bg-roxo-50 hover:text-roxo"

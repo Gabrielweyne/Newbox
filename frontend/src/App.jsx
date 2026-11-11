@@ -6,6 +6,7 @@ import Boxes from "./paginas/Boxes";
 import Cadastro from "./paginas/Cadastro";
 import Clientes from "./paginas/Clientes";
 import EsqueciSenha from "./paginas/EsqueciSenha";
+import FichaCliente from "./paginas/FichaCliente";
 import Funcionarios from "./paginas/Funcionarios";
 import ListaEspera from "./paginas/ListaEspera";
 import Login from "./paginas/Login";
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="painel" element={<Painel />} />
         <Route path="boxes" element={<Boxes />} />
         <Route path="clientes" element={<Clientes />} />
+        <Route path="clientes/:id" element={<FichaCliente />} />
         <Route path="mensalidades" element={<Mensalidades />} />
         <Route path="espera" element={<ListaEspera />} />
         <Route path="funcionarios" element={<Protegida soAdmin><Funcionarios /></Protegida>} />
