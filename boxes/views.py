@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 
 from . import cobranca, espera
 from .contrato_pdf import gerar_pdf_contrato
-from .models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede
+from .models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede, TipoBox
 from .permissions import EhAdminOuFuncionario, SomenteAdminAltera, sede_do_usuario
 from .serializers import (
     BoxSerializer,
@@ -20,6 +20,7 @@ from .serializers import (
     PagamentoSerializer,
     SedeOpcaoSerializer,
     SedeSerializer,
+    TipoBoxSerializer,
 )
 
 
@@ -127,7 +128,7 @@ class BoxViewSet(FiltraPorSedeMixin, ProtegidoContraExclusaoMixin, viewsets.Mode
             box=OuterRef("pk"), pago_em__isnull=True, vencimento__lt=cobranca.hoje()
         )
         contrato = Contrato.objects.filter(box=OuterRef("pk"), fim__isnull=True).values("id")[:1]
-        qs = self.filtrar_por_sede(Box.objects.select_related("sede", "cliente")).annotate(
+        qs = self.filtrar_por_sede(Box.objects.select_related("sede", "cliente", "tipo")).annotate(
             em_atraso=Exists(atrasada), contrato_ativo=Subquery(contrato)
         )
         params = self.request.query_params
@@ -371,3 +372,22 @@ class ContratoViewSet(FiltraPorSedeMixin, viewsets.ReadOnlyModelViewSet):
         resposta = HttpResponse(gerar_pdf_contrato(contrato), content_type="application/pdf")
         resposta["Content-Disposition"] = f'inline; filename="contrato-newbox-{contrato.numero}.pdf"'
         return resposta
+
+
+class TipoBoxViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
+    """
+    Catálogo de tamanhos por unidade. Todos os funcionários consultam (das duas
+    sedes, para orientar o cliente); só o administrador altera.
+    Filtro: ?sede=<id>
+    """
+
+    serializer_class = TipoBoxSerializer
+    permission_classes = [EhAdminOuFuncionario, SomenteAdminAltera]
+    pagination_class = None
+    mensagem_protegido = "Há boxes cadastrados com este tamanho. Troque o tamanho deles antes de excluir."
+
+    def get_queryset(self):
+        qs = TipoBox.objects.select_related("sede").annotate(total_boxes=Count("boxes"))
+        if sede := self.request.query_params.get("sede"):
+            qs = qs.filter(sede_id=sede)
+        return qs

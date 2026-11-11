@@ -15,6 +15,7 @@ from .views import (
     InteressadoViewSet,
     MensalidadeViewSet,
     SedeViewSet,
+    TipoBoxViewSet,
 )
 
 router = DefaultRouter()
@@ -24,6 +25,7 @@ router.register("boxes", BoxViewSet, basename="box")
 router.register("mensalidades", MensalidadeViewSet, basename="mensalidade")
 router.register("interessados", InteressadoViewSet, basename="interessado")
 router.register("contratos", ContratoViewSet, basename="contrato")
+router.register("tipos", TipoBoxViewSet, basename="tipo")
 router.register("funcionarios", FuncionarioViewSet, basename="funcionario")
 
 urlpatterns = [

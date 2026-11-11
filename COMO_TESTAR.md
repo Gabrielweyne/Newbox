@@ -38,9 +38,9 @@ Senha de todos: **Newbox#2026**
 
 Já existem boxes, clientes e mensalidades — inclusive algumas **atrasadas**, para ver o
 sininho e os avisos funcionando. Na **Lista de espera** há duas pessoas: entre como Ana,
-**libere o box do Pedro Rocha** (3x3 m) e veja o aviso para chamar o Rui no WhatsApp.
+**libere o box do Pedro Rocha** (P3) e veja o aviso para chamar o Rui no WhatsApp.
 Em **Boxes**, o botão **Contrato** abre o PDF do aluguel e o ícone de relógio mostra o
-**histórico** do box (o 4x4 m do Cocó já foi do Pedro e da Juliana).
+**histórico** do box (o G1 do Cocó já foi do Pedro e da Juliana).
 
 ## O que testar
 

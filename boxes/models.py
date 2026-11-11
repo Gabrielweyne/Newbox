@@ -11,7 +11,14 @@ class Sede(models.Model):
     """Unidade da Newbox. Uma sede tem muitos boxes."""
 
     nome = models.CharField("nome da sede", max_length=120, unique=True)
+    nome_publico = models.CharField(
+        "nome na página pública", max_length=120, blank=True,
+        help_text='Ex.: "Newbox Sede (Cambeba)". Vazio = usa o nome.',
+    )
     endereco = models.CharField("endereço", max_length=255)
+    whatsapp = models.CharField(
+        "WhatsApp da unidade", max_length=13, blank=True, help_text="Só números, com 55 + DDD."
+    )
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -27,6 +34,45 @@ class Sede(models.Model):
 
     def __str__(self):
         return self.nome
+
+
+class TipoBox(models.Model):
+    """
+    Tamanho de box do catálogo de uma unidade (P1, P2, M1, G1...).
+    Medidas e preço mudam de uma unidade para outra.
+    """
+
+    sede = models.ForeignKey(Sede, on_delete=models.CASCADE, related_name="tipos")
+    codigo = models.CharField("código", max_length=20, help_text='Ex.: "P1", "M1 SUP", "G2".')
+    area = models.DecimalField("área (m²)", max_digits=6, decimal_places=2)
+    volume = models.DecimalField("volume (m³)", max_digits=6, decimal_places=2)
+    comprimento = models.DecimalField(max_digits=5, decimal_places=2)
+    largura = models.DecimalField(max_digits=5, decimal_places=2)
+    altura = models.DecimalField(max_digits=5, decimal_places=2)
+    sugestao_uso = models.CharField("sugestão de uso", max_length=200)
+    valor = models.DecimalField("valor mensal", max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    ordem = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sede", "ordem", "id"]
+        verbose_name = "tipo de box"
+        verbose_name_plural = "tipos de box (catálogo)"
+        constraints = [
+            models.UniqueConstraint(fields=["sede", "codigo"], name="tipo_codigo_unico_por_sede"),
+            models.CheckConstraint(condition=~Q(codigo__regex=r"^\s*$"), name="tipo_codigo_preenchido"),
+            models.CheckConstraint(
+                condition=Q(area__gt=0) & Q(volume__gt=0) & Q(comprimento__gt=0) & Q(largura__gt=0) & Q(altura__gt=0),
+                name="tipo_medidas_positivas",
+            ),
+            models.CheckConstraint(condition=Q(valor__gte=0), name="tipo_valor_positivo"),
+        ]
+
+    @property
+    def nome(self):
+        return f"Box {self.codigo}"
+
+    def __str__(self):
+        return f"{self.nome} ({self.sede})"
 
 
 class Cliente(models.Model):
@@ -77,6 +123,10 @@ class Box(models.Model):
     """
 
     sede = models.ForeignKey(Sede, on_delete=models.PROTECT, related_name="boxes")
+    tipo = models.ForeignKey(
+        "TipoBox", on_delete=models.PROTECT, null=True, blank=True, related_name="boxes",
+        help_text="Tamanho do catálogo. Ao escolher, o código vira o tamanho do box.",
+    )
     tamanho = models.CharField(max_length=50)
     valor = models.DecimalField(
         max_digits=10, decimal_places=2, validators=[MinValueValidator(0)]

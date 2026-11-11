@@ -660,7 +660,8 @@ class MensalidadesTests(APITestCase):
 class DadosExemploTests(APITestCase):
     def test_cria_e_recria(self):
         call_command("dados_exemplo", stdout=StringIO())
-        self.assertEqual(Box.objects.count(), 12)
+        self.assertEqual(Box.objects.count(), 13)
+        self.assertFalse(Box.objects.filter(tipo__isnull=True).exists())
         self.assertEqual(Funcionario.objects.filter(usuario__is_active=False).count(), 1)
         self.assertTrue(Mensalidade.objects.filter(pago_em__isnull=True, vencimento__lt=cobranca.hoje()).exists())
         r = self.client.post("/api/auth/login/", {"cpf": "529.982.247-25", "senha": "Newbox#2026"})
@@ -668,7 +669,7 @@ class DadosExemploTests(APITestCase):
         with self.assertRaises(Exception):
             call_command("dados_exemplo", stdout=StringIO())
         call_command("dados_exemplo", apagar=True, stdout=StringIO())
-        self.assertEqual(Box.objects.count(), 12)
+        self.assertEqual(Box.objects.count(), 13)
 
     @override_settings(DEBUG=False)
     def test_nao_roda_em_producao(self):
@@ -680,27 +681,38 @@ class PaginaPublicaTests(APITestCase):
     def setUp(self):
         cache.clear()
         self.coco = Sede.objects.get(nome="Cocó")
+        self.p3 = self.coco.tipos.get(codigo="P3")
+        self.m1 = self.coco.tipos.get(codigo="M1")
         cliente = Cliente.objects.create(nome="Segredo da Silva")
-        Box.objects.create(sede=self.coco, tamanho="3x3 m", valor=420, cliente=cliente,
+        Box.objects.create(sede=self.coco, tipo=self.p3, tamanho="P3", valor=480, cliente=cliente,
                            anexo_pagamento="c/x.pdf", dia_vencimento=5, alugado_em="2026-11-01")
-        Box.objects.create(sede=self.coco, tamanho="2x2 m", valor=250)
-        Box.objects.create(sede=self.coco, tamanho="2x2 m ", valor=250)
+        Box.objects.create(sede=self.coco, tipo=self.m1, tamanho="M1", valor=600)
+        Box.objects.create(sede=self.coco, tamanho="m1 ", valor=600)  # antigo, sem tipo
 
-    def test_sem_login_e_sem_dados_sensiveis(self):
+    def test_catalogo_e_disponibilidade_sem_dados_sensiveis(self):
         r = self.client.get("/api/publico/")
         self.assertEqual(r.status_code, 200)
         coco = next(s for s in r.data["sedes"] if s["nome"] == "Cocó")
-        self.assertEqual(coco["tamanhos"], [
-            {"tamanho": "2x2 m", "disponivel": True},
-            {"tamanho": "3x3 m", "disponivel": False},
-        ])
+        self.assertEqual(coco["nome_publico"], "Newbox Cocó")
+        self.assertEqual(coco["whatsapp"], "5585997500544")
+        tipos = {t["codigo"]: t for t in coco["tipos"]}
+        self.assertEqual(list(tipos), ["P1", "P2", "P3", "M1", "M2", "M3", "G1", "G2", "G3", "G4"])
+        self.assertFalse(tipos["P3"]["disponivel"])
+        self.assertTrue(tipos["M1"]["disponivel"])
+        self.assertFalse(tipos["G4"]["disponivel"])  # nenhum box cadastrado
+        self.assertEqual(str(tipos["G4"]["valor"]), "1537.00")
+        self.assertEqual(tipos["P1"]["sugestao_uso"], "Documentos, malas e pequenos itens")
         texto = str(r.content)
-        for proibido in ("Segredo", "420", "250", "valor", "cliente"):
-            self.assertNotIn(proibido, texto)
-        self.assertEqual(r.data["contato"]["whatsapp"], "558599620414")
+        self.assertNotIn("Segredo", texto)
+        self.assertNotIn("480", texto)  # valor negociado do box não aparece
+        self.assertEqual(r.data["contato"]["whatsapp"], "5585999620414")
+        self.assertEqual(r.data["contato"]["instagram"], "newboxbrasil")
 
-    def test_endereco_cambeba(self):
-        self.assertIn("Ciro Monteiro", Sede.objects.get(nome="Cambeba").endereco)
+    def test_sede_cambeba(self):
+        camb = Sede.objects.get(nome="Cambeba")
+        self.assertEqual(camb.nome_publico, "Newbox Sede (Cambeba)")
+        self.assertIn("60822-285", camb.endereco)
+        self.assertEqual(list(camb.tipos.values_list("codigo", flat=True))[:4], ["P1", "P2", "P3", "M1 SUP"])
 
 
 from .models import Interessado  # noqa: E402
@@ -778,7 +790,9 @@ class ListaDeEsperaTests(APITestCase):
         camb = por_sede["Cambeba"][0]
         self.assertEqual((camb["livres"], camb["total"], str(camb["valor_a_partir"])), (2, 2, "380.00"))
         self.assertNotIn("Dono", str(r.data))
-        self.assertEqual(self.client.get("/api/interessados/tamanhos/").data, ["3x3 m"])
+        tamanhos = self.client.get("/api/interessados/tamanhos/").data
+        self.assertEqual(tamanhos[:3], ["P1", "P2", "P3"])
+        self.assertEqual(tamanhos[-1], "3x3 m")
 
     def test_precisa_login(self):
         self.client.force_authenticate(None)
@@ -835,6 +849,7 @@ class ContatoClienteTests(APITestCase):
 
     def test_endereco_coco(self):
         self.assertIn("Santana Júnior, 1901", Sede.objects.get(nome="Cocó").endereco)
+        self.assertIn("60192-205", Sede.objects.get(nome="Cocó").endereco)
 
 
 from .models import Contrato  # noqa: E402
@@ -928,3 +943,55 @@ class ExclusaoComHistoricoTests(ContratosTests):
         self.assertEqual(r.status_code, 409)
         self.assertIn("histórico", r.data["detail"])
         self.assertEqual(self.client.delete(f"/api/clientes/{self.cliente.id}/").status_code, 409)
+
+
+class CatalogoTests(APITestCase):
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.cambeba = Sede.objects.get(nome="Cambeba")
+        self.ana = User.objects.create_user("52998224725")
+        Funcionario.objects.create(usuario=self.ana, nome="Ana", cpf="52998224725", sede=self.coco)
+        self.admin = User.objects.create_user("chefe", is_staff=True)
+        self.client.force_authenticate(self.ana)
+
+    def test_box_pelo_catalogo(self):
+        g4 = self.coco.tipos.get(codigo="G4")
+        r = self.client.post("/api/boxes/", {"tipo": g4.id})
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual((r.data["tamanho"], r.data["valor"]), ("G4", "1537.00"))
+        self.assertEqual(r.data["tipo_detalhe"]["dimensoes"], "5,5 x 3,7 x 2,9 m")
+        # valor diferente do catálogo (negociado) é aceito
+        r = self.client.post("/api/boxes/", {"tipo": g4.id, "valor": "1400"})
+        self.assertEqual(r.data["valor"], "1400.00")
+
+    def test_tipo_de_outra_unidade_e_campos_obrigatorios(self):
+        p1_camb = self.cambeba.tipos.get(codigo="P1")
+        self.assertIn("tipo", self.client.post("/api/boxes/", {"tipo": p1_camb.id}).data)
+        r = self.client.post("/api/boxes/", {})
+        self.assertIn("tamanho", r.data)
+
+    def test_box_sem_catalogo_continua_funcionando(self):
+        r = self.client.post("/api/boxes/", {"tamanho": "Especial", "valor": "100"})
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertIsNone(r.data["tipo"])
+
+    def test_catalogo_leitura_para_todos_edicao_so_admin(self):
+        r = self.client.get(f"/api/tipos/?sede={self.cambeba.id}")
+        self.assertEqual(len(r.data), 8)
+        tipo = self.coco.tipos.get(codigo="P1")
+        self.assertEqual(self.client.patch(f"/api/tipos/{tipo.id}/", {"valor": "420"}).status_code, 403)
+        self.client.force_authenticate(self.admin)
+        r = self.client.patch(f"/api/tipos/{tipo.id}/", {"valor": "420"})
+        self.assertEqual(r.data["valor"], "420.00")
+        r = self.client.post("/api/tipos/", {
+            "sede": self.coco.id, "codigo": "g5", "area": "30", "volume": "87", "comprimento": "6",
+            "largura": "5", "altura": "2.9", "sugestao_uso": "Galpão", "valor": "2000",
+        })
+        self.assertEqual(r.data["codigo"], "G5")
+        Box.objects.create(sede=self.coco, tipo=tipo, tamanho="P1", valor=420)
+        self.assertEqual(self.client.delete(f"/api/tipos/{tipo.id}/").status_code, 409)
+
+    def test_lista_de_espera_oferece_codigos(self):
+        tamanhos = self.client.get("/api/interessados/tamanhos/").data
+        self.assertIn("M1 SUP", tamanhos)
+        self.assertIn("G4", tamanhos)

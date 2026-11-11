@@ -197,10 +197,13 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 PASSWORD_RESET_TIMEOUT = int(os.environ.get("PASSWORD_RESET_HORAS", "1")) * 3600
 
 # Contatos exibidos na página pública (visitantes)
-NEWBOX_WHATSAPP = os.environ.get("NEWBOX_WHATSAPP", "558599620414")  # só números, com 55 + DDD
+NEWBOX_WHATSAPP = os.environ.get("NEWBOX_WHATSAPP", "5585999620414")  # principal (Sede); só números, com 55 + DDD
 NEWBOX_TELEFONE = os.environ.get("NEWBOX_TELEFONE", "(85) 3458-1019")
 NEWBOX_EMAIL = os.environ.get("NEWBOX_EMAIL", "contato@newboxbrasil.com.br")
-NEWBOX_INSTAGRAM = os.environ.get("NEWBOX_INSTAGRAM", "")
+NEWBOX_INSTAGRAM = os.environ.get("NEWBOX_INSTAGRAM", "newboxbrasil")
+NEWBOX_HORARIO = os.environ.get(
+    "NEWBOX_HORARIO", "Segunda a sexta, das 8h às 18h · Sábado, das 8h às 12h"
+)
 
 # Dados da empresa no contrato em PDF (deixe o CNPJ vazio para não exibir)
 NEWBOX_RAZAO_SOCIAL = os.environ.get("NEWBOX_RAZAO_SOCIAL", "Newbox Self Storage")

@@ -20,7 +20,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from boxes import cobranca
-from boxes.models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede
+from boxes.models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede, TipoBox
 
 User = get_user_model()
 SENHA = "Newbox#2026"
@@ -89,23 +89,30 @@ class Command(BaseCommand):
         clientes["Lucas Martins"].telefone = ""  # cliente antigo, sem WhatsApp cadastrado
         clientes["Lucas Martins"].save()
 
-        # (sede, tamanho, valor, cliente, dia de vencimento, meses alugado)
+        # Boxes com os tamanhos reais do catálogo de cada unidade.
+        # (sede, código do catálogo, cliente, dia de vencimento, meses alugado)
         boxes = [
-            (coco, "2x2 m", 250, "Carlos Souza", 5, 3),
-            (coco, "2x2 m", 250, "Mariana Alves", 10, 2),
-            (coco, "3x3 m", 420, "Pedro Rocha", 15, 4),
-            (coco, "3x3 m", 420, "Fernanda Costa", 25, 1),
-            (coco, "4x4 m", 650, None, None, 0),
-            (coco, "1x2 m", 180, None, None, 0),
-            (coco, "2x3 m", 320, None, None, 0),
-            (cambeba, "2x2 m", 250, "Juliana Castro", 20, 2),
-            (cambeba, "3x3 m", 420, "Rafael Lima", 30, 3),
-            (cambeba, "4x4 m", 650, "Lucas Martins", 10, 1),
-            (cambeba, "5x5 m", 900, None, None, 0),
-            (cambeba, "1x2 m", 180, None, None, 0),
+            (coco, "P1", "Carlos Souza", 5, 3),
+            (coco, "P2", "Mariana Alves", 10, 2),
+            (coco, "P3", "Pedro Rocha", 15, 4),
+            (coco, "M2", "Fernanda Costa", 25, 1),
+            (coco, "P1", None, None, 0),
+            (coco, "M1", None, None, 0),
+            (coco, "G1", None, None, 0),
+            (coco, "G4", None, None, 0),
+            (cambeba, "P2", "Juliana Castro", 20, 2),
+            (cambeba, "P3", "Rafael Lima", 30, 3),
+            (cambeba, "M3", "Lucas Martins", 10, 1),
+            (cambeba, "M1 SUP", None, None, 0),
+            (cambeba, "G2", None, None, 0),
+        ]
+        catalogo = {(t.sede_id, t.codigo): t for t in TipoBox.objects.all()}
+        boxes = [
+            (sede, codigo, catalogo[(sede.id, codigo)].valor, cliente, dia, meses)
+            for sede, codigo, cliente, dia, meses in boxes
         ]
         for sede, tamanho, valor, cliente, dia, meses in boxes:
-            box = Box(sede=sede, tamanho=tamanho, valor=valor)
+            box = Box(sede=sede, tipo=catalogo[(sede.id, tamanho)], tamanho=tamanho, valor=valor)
             if cliente:
                 box.cliente = clientes[cliente]
                 box.dia_vencimento = dia
@@ -125,18 +132,18 @@ class Command(BaseCommand):
             m.comprovante = comprovante()
             m.save()
 
-        # Histórico: contratos já encerrados (o box 4x4 do Cocó já foi do Pedro e da Juliana)
-        box_4x4 = Box.objects.get(sede=coco, tamanho="4x4 m")
+        # Histórico: contratos já encerrados (o box G1 do Cocó já foi do Pedro e da Juliana)
+        box_4x4 = Box.objects.get(sede=coco, tamanho="G1")
         for cliente, dias_inicio, dias_fim in [("Pedro Rocha", 540, 300), ("Juliana Castro", 280, 95)]:
             Contrato.objects.create(
-                box=box_4x4, cliente=clientes[cliente], tamanho=box_4x4.tamanho, valor=600, dia_vencimento=15,
+                box=box_4x4, cliente=clientes[cliente], tamanho=box_4x4.tamanho, valor=800, dia_vencimento=15,
                 inicio=hoje - timedelta(days=dias_inicio), fim=hoje - timedelta(days=dias_fim),
             )
 
-        # Lista de espera: Rui espera um 3x3 no Cocó (libere o box do Pedro para ver o aviso);
-        # Paula aceita qualquer unidade e já tem vaga de 5x5 na Cambeba.
-        Interessado.objects.create(nome="Rui Barbosa", telefone="85988887777", sede=coco, tamanho="3x3 m")
-        Interessado.objects.create(nome="Paula Souza", telefone="85998765432", tamanho="5x5 m",
+        # Lista de espera: Rui espera um P3 no Cocó (libere o box do Pedro para ver o aviso);
+        # Paula aceita qualquer unidade e já tem vaga de G2 na Sede (Cambeba).
+        Interessado.objects.create(nome="Rui Barbosa", telefone="85988887777", sede=coco, tamanho="P3")
+        Interessado.objects.create(nome="Paula Souza", telefone="85998765432", tamanho="G2",
                                    observacao="mudança em dezembro")
 
         self.stdout.write(self.style.SUCCESS("Dados de exemplo criados!"))

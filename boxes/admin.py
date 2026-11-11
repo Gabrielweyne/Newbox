@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 
-from .models import Box, Cliente, Funcionario, Interessado, Mensalidade, Sede
+from .models import Box, Cliente, Funcionario, Interessado, Mensalidade, Sede, TipoBox
 
 User = get_user_model()
 
@@ -104,3 +104,10 @@ class InteressadoAdmin(admin.ModelAdmin):
     list_display = ["nome", "telefone", "sede", "tamanho", "situacao", "criado_em"]
     list_filter = ["situacao", "sede"]
     search_fields = ["nome", "telefone"]
+
+
+@admin.register(TipoBox)
+class TipoBoxAdmin(admin.ModelAdmin):
+    list_display = ["codigo", "sede", "area", "volume", "valor", "sugestao_uso", "ordem"]
+    list_filter = ["sede"]
+    list_editable = ["valor", "ordem"]

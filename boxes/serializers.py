@@ -1,9 +1,24 @@
 from rest_framework import serializers
 
 from . import cobranca
-from .models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede
+from .models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede, TipoBox
 from .permissions import sede_do_usuario
 from .validators import somente_digitos
+
+
+class TipoBoxSerializer(serializers.ModelSerializer):
+    sede_nome = serializers.CharField(source="sede.nome", read_only=True)
+    total_boxes = serializers.IntegerField(read_only=True, default=None)
+
+    class Meta:
+        model = TipoBox
+        fields = [
+            "id", "sede", "sede_nome", "codigo", "area", "volume", "comprimento", "largura", "altura",
+            "sugestao_uso", "valor", "ordem", "total_boxes",
+        ]
+
+    def validate_codigo(self, valor):
+        return " ".join(valor.split()).upper()
 
 
 class SedeSerializer(serializers.ModelSerializer):
@@ -15,6 +30,11 @@ class SedeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sede
         fields = ["id", "nome", "endereco", "numero_de_box", "alugados", "nao_alugados"]
+
+
+def numero_br(valor):
+    """Decimal('5.50') -> '5,5'"""
+    return format(valor.normalize(), "f").replace(".", ",")
 
 
 def limpar_telefone(valor):
@@ -82,16 +102,30 @@ class BoxSerializer(serializers.ModelSerializer):
     class Meta:
         model = Box
         fields = [
-            "id", "sede", "sede_nome", "tamanho", "valor",
+            "id", "sede", "sede_nome", "tipo", "tipo_detalhe", "tamanho", "valor",
             "cliente", "cliente_nome", "anexo_pagamento", "dia_vencimento", "alugado_em",
             "alugado", "em_atraso", "contrato_ativo",
         ]
         read_only_fields = ["alugado_em"]
-        # Funcionário pode omitir a sede: usa a dele automaticamente
-        extra_kwargs = {"sede": {"required": False}}
+        # Funcionário pode omitir a sede: usa a dele automaticamente.
+        # Com um tipo do catálogo, tamanho e valor vêm dele se não forem informados.
+        extra_kwargs = {"sede": {"required": False}, "tamanho": {"required": False}, "valor": {"required": False}}
+
+    tipo_detalhe = serializers.SerializerMethodField()
+
+    def get_tipo_detalhe(self, obj):
+        t = obj.tipo
+        if not t:
+            return None
+        return {
+            "codigo": t.codigo, "area": t.area, "volume": t.volume,
+            "dimensoes": " x ".join(numero_br(n) for n in (t.comprimento, t.largura, t.altura)) + " m",
+            "sugestao_uso": t.sugestao_uso, "valor_catalogo": t.valor,
+        }
 
     def validate(self, attrs):
         self._validar_sede(attrs)
+        self._aplicar_tipo(attrs)
         atual = self.instance
         cliente = attrs.get("cliente", getattr(atual, "cliente", None))
         anexo = attrs.get("anexo_pagamento", getattr(atual, "anexo_pagamento", None))
@@ -121,6 +155,24 @@ class BoxSerializer(serializers.ModelSerializer):
                 {"cliente": "Obrigatório quando há anexo de pagamento."}
             )
         return attrs
+
+    def _aplicar_tipo(self, attrs):
+        tipo = attrs.get("tipo", getattr(self.instance, "tipo", None))
+        sede = attrs.get("sede", getattr(self.instance, "sede", None))
+        if tipo and sede and tipo.sede_id != sede.pk:
+            raise serializers.ValidationError({"tipo": "Este tamanho é do catálogo de outra unidade."})
+        if "tipo" in attrs and tipo:
+            attrs["tamanho"] = tipo.codigo
+            if "valor" not in attrs and not self.instance:
+                attrs["valor"] = tipo.valor
+        if not self.instance:
+            erros = {}
+            if not attrs.get("tamanho"):
+                erros["tamanho"] = "Escolha um tamanho do catálogo ou informe o tamanho."
+            if attrs.get("valor") is None:
+                erros["valor"] = "Este campo é obrigatório."
+            if erros:
+                raise serializers.ValidationError(erros)
 
     def _usuario(self):
         request = self.context.get("request")

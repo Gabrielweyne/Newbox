@@ -7,8 +7,6 @@ Um interessado "combina" com um box livre quando:
     (ignorando maiúsculas e espaços: "3x3 m" == "3X3m").
 """
 
-from collections import defaultdict
-
 from .models import Box, Interessado, Sede
 
 
@@ -71,9 +69,16 @@ def disponibilidade():
 
 
 def tamanhos_cadastrados():
-    vistos = defaultdict(str)
-    for t in Box.objects.values_list("tamanho", flat=True):
-        vistos.setdefault(normalizar_tamanho(t), t.strip())
+    """Códigos do catálogo (na ordem P, M, G) e depois tamanhos avulsos dos boxes."""
+    from .models import TipoBox
     from .publico import _ordem_tamanho
 
-    return sorted(vistos.values(), key=_ordem_tamanho)
+    vistos = {}
+    for codigo in TipoBox.objects.order_by("ordem", "sede_id").values_list("codigo", flat=True):
+        vistos.setdefault(normalizar_tamanho(codigo), codigo)
+    avulsos = {}
+    for t in Box.objects.values_list("tamanho", flat=True):
+        chave = normalizar_tamanho(t)
+        if chave not in vistos:
+            avulsos.setdefault(chave, t.strip())
+    return list(vistos.values()) + sorted(avulsos.values(), key=_ordem_tamanho)
