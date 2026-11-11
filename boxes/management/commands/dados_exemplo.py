@@ -20,7 +20,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from boxes import cobranca
-from boxes.models import Box, Cliente, Funcionario, Mensalidade, Sede
+from boxes.models import Box, Cliente, Funcionario, Interessado, Mensalidade, Sede
 
 User = get_user_model()
 SENHA = "Newbox#2026"
@@ -51,6 +51,7 @@ class Command(BaseCommand):
         if not settings.DEBUG:
             raise CommandError("Por segurança, este comando só roda com DJANGO_DEBUG=1.")
         if apagar:
+            Interessado.objects.all().delete()
             Mensalidade.objects.all().delete()
             Box.objects.all().delete()
             Funcionario.objects.all().delete()
@@ -118,6 +119,12 @@ class Command(BaseCommand):
             m.pago_em = m.vencimento - timedelta(days=1)
             m.comprovante = comprovante()
             m.save()
+
+        # Lista de espera: Rui espera um 3x3 no Cocó (libere o box do Pedro para ver o aviso);
+        # Paula aceita qualquer unidade e já tem vaga de 5x5 na Cambeba.
+        Interessado.objects.create(nome="Rui Barbosa", telefone="85988887777", sede=coco, tamanho="3x3 m")
+        Interessado.objects.create(nome="Paula Souza", telefone="85998765432", tamanho="5x5 m",
+                                   observacao="mudança em dezembro")
 
         self.stdout.write(self.style.SUCCESS("Dados de exemplo criados!"))
         self.stdout.write(

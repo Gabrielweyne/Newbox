@@ -165,3 +165,9 @@ export const IconeCofrinho = (p) => (
     <path d="M10 7.5h4M15.5 11.5h.01" />
   </Svg>
 );
+export const IconeEspera = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </Svg>
+);

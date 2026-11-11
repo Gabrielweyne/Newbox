@@ -37,7 +37,8 @@ Senha de todos: **Newbox#2026**
 | Carla Dias (Cocó) | 153.509.460-56 | Cadastro aguardando aprovação (não entra até o admin aprovar) |
 
 Já existem boxes, clientes e mensalidades — inclusive algumas **atrasadas**, para ver o
-sininho e os avisos funcionando.
+sininho e os avisos funcionando. Na **Lista de espera** há duas pessoas: entre como Ana,
+**libere o box do Pedro Rocha** (3x3 m) e veja o aviso para chamar o Rui no WhatsApp.
 
 ## O que testar
 

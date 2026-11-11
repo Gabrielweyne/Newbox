@@ -3,7 +3,7 @@ import { useLocation } from "react-router";
 import { api } from "./api";
 
 /**
- * Avisos de vencimento (mensalidades que vencem hoje e atrasadas).
+ * Avisos: mensalidades que vencem hoje, atrasadas e vagas para a lista de espera.
  * Atualiza ao trocar de página, a cada 5 minutos e depois de registrar pagamentos.
  */
 const AvisosContext = createContext(null);
@@ -13,7 +13,14 @@ export function AvisosProvider({ children }) {
   const local = useLocation();
 
   const atualizar = useCallback(() => {
-    api("/mensalidades/avisos/").then(setAvisos).catch(() => {});
+    Promise.all([
+      api("/mensalidades/avisos/"),
+      api("/interessados/oportunidades/").catch(() => []),
+    ])
+      .then(([m, oportunidades]) =>
+        setAvisos({ ...m, oportunidades, pendencias: m.pendencias + oportunidades.length })
+      )
+      .catch(() => {});
   }, []);
 
   useEffect(atualizar, [atualizar, local.pathname]);

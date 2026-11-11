@@ -5,7 +5,7 @@ import logoBranco from "../assets/logo-branco.png";
 import { useAuth } from "../auth";
 import { AvisosProvider, useAvisos } from "../avisos";
 import { primeiroNome } from "../formato";
-import { IconeCaixa, IconeCalendario, IconeCasa, IconeCracha, IconeMenu, IconePessoas, IconeSair, IconeX } from "./Icones";
+import { IconeCaixa, IconeCalendario, IconeCasa, IconeCracha, IconeEspera, IconeMenu, IconePessoas, IconeSair, IconeX } from "./Icones";
 import Sino from "./Sino";
 
 function linksDo(usuario) {
@@ -14,6 +14,7 @@ function linksDo(usuario) {
     { para: "/boxes", rotulo: "Boxes", icone: IconeCaixa },
     { para: "/mensalidades", rotulo: "Mensalidades", icone: IconeCalendario },
     { para: "/clientes", rotulo: "Clientes", icone: IconePessoas },
+    { para: "/espera", rotulo: "Lista de espera", icone: IconeEspera },
   ];
   if (usuario.admin) links.push({ para: "/funcionarios", rotulo: "Funcionários", icone: IconeCracha });
   return links;
@@ -55,7 +56,7 @@ function Estrutura() {
   const local = usuario.sede?.nome ? `Sede ${usuario.sede.nome}` : "Todas as sedes";
 
   const classeLink = ({ isActive }) =>
-    `flex items-center gap-2 rounded-md px-3 py-2 tracking-wide transition-colors ${
+    `flex items-center gap-2 rounded-md px-2.5 py-2 tracking-wide whitespace-nowrap transition-colors ${
       isActive ? "text-roxo" : "text-marinho-claro hover:text-roxo"
     }`;
 
@@ -67,7 +68,7 @@ function Estrutura() {
             <img src={logo} alt="Newbox - Guarda tudo" className="h-10 w-auto" />
           </NavLink>
 
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Principal">
+          <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Principal">
             {links.map((l) => (
               <NavLink key={l.para} to={l.para} end={l.fim} className={classeLink}>
                 {l.rotulo}
@@ -75,11 +76,11 @@ function Estrutura() {
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-1 md:ml-0 md:hidden">
+          <div className="ml-auto flex items-center gap-1 lg:ml-0 lg:hidden">
             <Sino />
           </div>
 
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-3 lg:flex">
             <Sino />
             <div className="text-right leading-tight">
               <p className="text-sm font-medium">{primeiroNome(nome)}</p>
@@ -96,7 +97,7 @@ function Estrutura() {
           </div>
 
           <button
-            className="rounded-md p-2 text-marinho md:hidden"
+            className="rounded-md p-2 text-marinho lg:hidden"
             onClick={() => setMenuAberto((v) => !v)}
             aria-label="Menu"
             aria-expanded={menuAberto}
@@ -106,7 +107,7 @@ function Estrutura() {
         </div>
 
         {menuAberto && (
-          <nav className="border-t border-roxo-100 px-4 pb-4 md:hidden" aria-label="Principal (celular)">
+          <nav className="border-t border-roxo-100 px-4 pb-4 lg:hidden" aria-label="Principal (celular)">
             <div className="py-3 text-sm">
               <p className="font-medium">{nome}</p>
               <p className="text-xs text-roxo">{local}</p>

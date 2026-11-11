@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Banner } from "../componentes/Layout";
 import { IconeCaixa, IconeChave, IconeCofre } from "../componentes/Icones";
+import Disponibilidade, { useDisponibilidade } from "../componentes/Disponibilidade";
+import { IconeWhatsapp } from "../componentes/Icones";
 import RegistrarPagamento from "../componentes/RegistrarPagamento";
+import { linkWhatsapp, mensagemVaga } from "../whatsapp";
 import { Aviso, Carregando, Cartao, Etiqueta } from "../componentes/ui";
 import { listarTudo } from "../api";
 import { useAuth } from "../auth";
@@ -148,11 +151,50 @@ function Vencimentos({ admin }) {
   );
 }
 
+/** Pessoas da lista de espera que já têm box livre na sede. */
+function VagasParaEspera() {
+  const { avisos } = useAvisos();
+  const itens = avisos?.oportunidades || [];
+  if (!itens.length) return null;
+  return (
+    <Cartao className="overflow-hidden ring-emerald-200">
+      <div className="flex items-center justify-between gap-3 border-b border-emerald-100 bg-emerald-50/70 px-5 py-4">
+        <div>
+          <h2 className="font-semibold text-emerald-900">Liberou vaga para a lista de espera</h2>
+          <p className="text-xs text-emerald-900/70">Chame essas pessoas antes que o box seja alugado.</p>
+        </div>
+        <Link to="/espera" className="text-sm text-roxo hover:underline">Ver lista</Link>
+      </div>
+      <ul className="divide-y divide-roxo-100">
+        {itens.map((i) => (
+          <li key={i.id} className="flex items-center justify-between gap-3 px-5 py-3">
+            <div className="min-w-0">
+              <p className="truncate font-medium text-marinho">{i.nome}</p>
+              <p className="text-xs text-marinho-claro/70">
+                Box #{i.vagas[0].id} · {i.vagas[0].tamanho} · {i.vagas[0].sede_nome}
+              </p>
+            </div>
+            <a
+              href={linkWhatsapp(i.telefone, mensagemVaga(i, i.vagas[0]))}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[#25d366] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1ebe5a]"
+            >
+              <IconeWhatsapp className="size-4" /> Chamar
+            </a>
+          </li>
+        ))}
+      </ul>
+    </Cartao>
+  );
+}
+
 export default function Painel() {
   const { usuario } = useAuth();
   const [sedes, setSedes] = useState(null);
   const [receitas, setReceitas] = useState({});
   const [erro, setErro] = useState("");
+  const disponibilidade = useDisponibilidade();
 
   useEffect(() => {
     Promise.all([listarTudo("/sedes/"), listarTudo("/boxes/?alugado=true")])
@@ -175,11 +217,13 @@ export default function Painel() {
       />
       <div className="mx-auto max-w-6xl space-y-10 px-4 py-10">
         <Aviso>{erro}</Aviso>
+        <VagasParaEspera />
         <Vencimentos admin={usuario.admin} />
         {!sedes && !erro && <Carregando />}
         {sedes?.map((s) => (
           <ResumoSede key={s.id} sede={s} receita={receitas[s.id] || 0} mostrarNome={sedes.length > 1} />
         ))}
+        {sedes && <Disponibilidade dados={disponibilidade} minhaSede={usuario.sede?.id} />}
       </div>
     </>
   );

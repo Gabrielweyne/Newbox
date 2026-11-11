@@ -28,7 +28,7 @@ function Item({ m, tipo }) {
   );
 }
 
-/** Sininho do cabeçalho com os vencimentos de hoje e as mensalidades atrasadas. */
+/** Sininho do cabeçalho: vagas para a lista de espera, vencimentos de hoje e atrasos. */
 export default function Sino() {
   const { avisos } = useAvisos();
   const [aberto, setAberto] = useState(false);
@@ -51,13 +51,14 @@ export default function Sino() {
   const pagaram = hoje.filter((m) => m.situacao === "paga");
   const naoPagaram = hoje.filter((m) => m.situacao !== "paga");
   const atrasadas = avisos?.atrasadas || [];
+  const oportunidades = avisos?.oportunidades || [];
 
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setAberto((v) => !v)}
         className="relative rounded-md p-2 text-marinho-claro/80 hover:bg-roxo-50 hover:text-roxo"
-        aria-label={n ? `Avisos de pagamento: ${n} pendência(s)` : "Avisos de pagamento"}
+        aria-label={n ? `Avisos: ${n} pendência(s)` : "Avisos"}
         aria-expanded={aberto}
       >
         <IconeSino className="size-6" />
@@ -71,18 +72,49 @@ export default function Sino() {
       {aberto && (
         <div className="absolute right-0 z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl bg-white shadow-xl ring-1 ring-roxo-100">
           <div className="bg-marinho px-4 py-3">
-            <p className="font-medium text-white">Avisos de pagamento</p>
+            <p className="font-medium text-white">Avisos</p>
             <p className="text-xs text-white/70">
-              {hoje.length ? `Hoje vencem ${hoje.length} mensalidade(s)` : "Nenhum vencimento hoje"}
+              {[
+                oportunidades.length && `${oportunidades.length} vaga(s) para a lista de espera`,
+                hoje.length ? `${hoje.length} vencimento(s) hoje` : "nenhum vencimento hoje",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           </div>
           <div className="max-h-96 overflow-y-auto">
             {!avisos ? (
               <p className="px-4 py-6 text-center text-sm text-marinho-claro/70">Carregando...</p>
-            ) : hoje.length === 0 && atrasadas.length === 0 ? (
+            ) : hoje.length === 0 && atrasadas.length === 0 && oportunidades.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-marinho-claro/70">Tudo em dia por aqui.</p>
             ) : (
               <>
+                {oportunidades.length > 0 && (
+                  <section>
+                    <p className="bg-emerald-50 px-4 py-1.5 text-xs font-semibold tracking-wide text-emerald-800 uppercase">
+                      Vaga para a lista de espera
+                    </p>
+                    <ul>
+                      {oportunidades.map((i) => (
+                        <li key={i.id}>
+                          <Link
+                            to="/espera"
+                            onClick={() => setAberto(false)}
+                            className="flex items-start gap-3 px-4 py-2.5 hover:bg-fundo"
+                          >
+                            <span className="mt-1.5 size-2 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+                            <div className="min-w-0 text-sm">
+                              <p className="truncate font-medium text-marinho">{i.nome}</p>
+                              <p className="text-xs text-marinho-claro/70">
+                                Liberou box {i.vagas[0].tamanho} · unidade {i.vagas[0].sede_nome} · chame no WhatsApp
+                              </p>
+                            </div>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
                 {hoje.length > 0 && (
                   <section>
                     <p className="bg-roxo-50 px-4 py-1.5 text-xs font-semibold tracking-wide text-roxo-700 uppercase">

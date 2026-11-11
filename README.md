@@ -137,6 +137,18 @@ Em `/`: apresentação da Newbox, tamanhos disponíveis por unidade (em tempo re
 **WhatsApp** com a mensagem pronta (nome, unidade, tamanho, prazo). Contatos configuráveis no
 `.env`: `NEWBOX_WHATSAPP` (só números, com 55 + DDD), `NEWBOX_TELEFONE`, `NEWBOX_EMAIL`.
 
+## Lista de espera e vagas nas duas sedes
+
+- Quando um cliente chamar e não houver box livre, o funcionário anota em **Lista de espera**
+  (nome, WhatsApp, unidade ou "qualquer uma", tamanho ou "qualquer um"). A lista é
+  compartilhada entre as sedes.
+- Ao **liberar** ou **cadastrar** um box que sirva para alguém da lista, o sininho e o painel
+  avisam os funcionários da sede do box, com o botão **Chamar no WhatsApp** (mensagem pronta).
+  Marcar "contatado", "alugou" ou "desistiu" tira o aviso.
+- O quadro **Boxes livres nas sedes** (painel e lista de espera) mostra quantos boxes de cada
+  tamanho estão livres em cada unidade e a partir de qual valor, para oferecer a outra unidade.
+  Ao anotar alguém, o sistema já avisa se há vaga em outra sede.
+
 ## Mensalidades e avisos de vencimento
 
 - Ao alugar, escolhe-se o **dia de vencimento**: 5, 10, 15, 20, 25 ou 30 (em meses mais curtos,
@@ -188,6 +200,8 @@ Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 | `/api/funcionarios/` | Consulta de funcionários. Filtros: `?sede=`, `?aprovado=true\|false`. Admin: `POST .../<id>/aprovar/` e `.../<id>/bloquear/` |
 | `/api/funcionarios/sedes/` | Aberto: lista as sedes para o formulário de cadastro |
 | `/api/mensalidades/` | Mensalidades. Filtros: `?competencia=AAAA-MM`, `?situacao=paga\|pendente\|atrasada\|vence_hoje\|a_vencer`, `?box=`, `?sede=`. `GET .../avisos/` (vencem hoje + atrasadas), `POST .../<id>/pagar/` (comprovante, pago_em), `POST .../<id>/desfazer/` |
+| `/api/interessados/` | Lista de espera (CRUD). `?situacao=`. `GET .../oportunidades/` (quem já tem vaga na sua sede), `GET .../tamanhos/` |
+| `/api/disponibilidade/` | Boxes livres por sede e tamanho, com valor mínimo (sem dados de clientes) |
 | `/api/publico/`   | **Aberto.** Sedes, endereços, tamanhos de box e se há algum livre, mais os contatos (sem clientes, valores ou quantidades) |
 | `/admin/`         | Painel administrativo do Django                                           |
 

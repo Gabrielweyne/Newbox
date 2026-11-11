@@ -15,6 +15,7 @@ import {
 import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Selecao, Vazio } from "../componentes/ui";
 import { api, ErroApi, listarTudo } from "../api";
 import { useAuth } from "../auth";
+import { useAvisos } from "../avisos";
 import { DIAS_VENCIMENTO, formatarMoeda } from "../formato";
 
 /* ---------- Formulário de box (novo / editar) ---------- */
@@ -289,6 +290,7 @@ function Acoes({ box, abrir }) {
 
 export default function Boxes() {
   const { usuario } = useAuth();
+  const { atualizar: atualizarAvisos } = useAvisos();
   const [params, setParams] = useSearchParams();
   const [boxes, setBoxes] = useState(null);
   const [sedes, setSedes] = useState([]);
@@ -305,7 +307,8 @@ export default function Boxes() {
         setSedes(s);
       })
       .catch((e) => setErro(e.message));
-  }, []);
+    atualizarAvisos();
+  }, [atualizarAvisos]);
   useEffect(carregar, [carregar]);
 
   const mudarFiltro = (chave, valor) => {
