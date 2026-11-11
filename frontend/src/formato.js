@@ -47,3 +47,6 @@ export const SITUACOES = {
 };
 
 export const DIAS_VENCIMENTO = [5, 10, 15, 20, 25, 30];
+
+/** 5.50 -> "5,5" */
+export const formatarNumero = (v) => Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 2 });

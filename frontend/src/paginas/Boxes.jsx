@@ -18,27 +18,48 @@ import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Selecao, Vazi
 import { api, ErroApi, listarTudo } from "../api";
 import { useAuth } from "../auth";
 import { useAvisos } from "../avisos";
-import { DIAS_VENCIMENTO, formatarMoeda } from "../formato";
+import { DIAS_VENCIMENTO, formatarMoeda, formatarNumero } from "../formato";
 import { formatarTelefone } from "../whatsapp";
 
 /* ---------- Formulário de box (novo / editar) ---------- */
 
-function FormBox({ box, sedes, admin, aoSalvar, aoFechar }) {
+function FormBox({ box, sedes, admin, sedePadrao, aoSalvar, aoFechar }) {
   const [dados, setDados] = useState({
-    sede: box?.sede ?? (sedes.length === 1 ? sedes[0].id : ""),
+    // Funcionário: sempre a própria sede (vem do login, não depende da lista ter carregado)
+    sede: box?.sede ?? sedePadrao ?? (sedes.length === 1 ? sedes[0].id : ""),
+    tipo: box ? (box.tipo ? String(box.tipo) : "outro") : "",
     tamanho: box?.tamanho ?? "",
     valor: box?.valor ?? "",
     dia_vencimento: box?.dia_vencimento ?? "",
   });
+  const [tipos, setTipos] = useState([]);
   const [erro, setErro] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const mudar = (c) => (e) => setDados((d) => ({ ...d, [c]: e.target.value }));
+
+  // Catálogo da unidade escolhida
+  useEffect(() => {
+    if (!dados.sede) return setTipos([]);
+    api(`/tipos/?sede=${dados.sede}`).then(setTipos).catch(() => setTipos([]));
+  }, [dados.sede]);
+
+  const tipoEscolhido = tipos.find((t) => String(t.id) === dados.tipo);
+  function escolherTipo(e) {
+    const id = e.target.value;
+    const t = tipos.find((x) => String(x.id) === id);
+    setDados((d) => ({ ...d, tipo: id, ...(t ? { tamanho: t.codigo, valor: t.valor } : {}) }));
+  }
 
   async function enviar(e) {
     e.preventDefault();
     setEnviando(true);
     setErro(null);
-    const corpo = { tamanho: dados.tamanho, valor: dados.valor };
+    const corpo = { valor: dados.valor };
+    if (dados.tipo && dados.tipo !== "outro") corpo.tipo = Number(dados.tipo);
+    else {
+      corpo.tipo = null;
+      corpo.tamanho = dados.tamanho;
+    }
     if (admin) corpo.sede = dados.sede;
     if (box?.alugado) corpo.dia_vencimento = dados.dia_vencimento;
     try {
@@ -55,7 +76,7 @@ function FormBox({ box, sedes, admin, aoSalvar, aoFechar }) {
 
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
-      {erro && !["sede", "tamanho", "valor"].some((c) => erro.campo(c)) && <Aviso>{erro.message}</Aviso>}
+      {erro && !["sede", "tipo", "tamanho", "valor"].some((c) => erro.campo(c)) && <Aviso>{erro.message}</Aviso>}
       {admin && (
         <Selecao rotulo="Sede" value={dados.sede} onChange={mudar("sede")} erro={erro?.campo("sede")}>
           <option value="">Selecione</option>
@@ -66,14 +87,32 @@ function FormBox({ box, sedes, admin, aoSalvar, aoFechar }) {
           ))}
         </Selecao>
       )}
-      <Campo
-        rotulo="Tamanho"
-        placeholder="Ex.: 2x2 m, P, M, G"
-        value={dados.tamanho}
-        onChange={mudar("tamanho")}
-        erro={erro?.campo("tamanho")}
-        autoFocus
-      />
+      <Selecao rotulo="Tamanho (catálogo)" value={dados.tipo} onChange={escolherTipo} erro={erro?.campo("tipo")}>
+        <option value="">{dados.sede ? "Selecione" : "Escolha a sede primeiro"}</option>
+        {tipos.map((t) => (
+          <option key={t.id} value={t.id}>
+            Box {t.codigo} · {formatarMoeda(t.valor)} · {t.sugestao_uso}
+          </option>
+        ))}
+        <option value="outro">Outro tamanho (fora do catálogo)</option>
+      </Selecao>
+      {tipoEscolhido && (
+        <p className="-mt-2 rounded-md bg-roxo-50 px-3 py-2 text-xs text-roxo-700">
+          {formatarNumero(tipoEscolhido.comprimento)} x {formatarNumero(tipoEscolhido.largura)} x{" "}
+          {formatarNumero(tipoEscolhido.altura)} m · {formatarNumero(tipoEscolhido.area)} m² ·{" "}
+          {formatarNumero(tipoEscolhido.volume)} m³
+        </p>
+      )}
+      {dados.tipo === "outro" && (
+        <Campo
+          rotulo="Tamanho"
+          placeholder="Ex.: Especial 2x2 m"
+          value={dados.tamanho}
+          onChange={mudar("tamanho")}
+          erro={erro?.campo("tamanho")}
+          autoFocus
+        />
+      )}
       <Campo
         rotulo="Valor (R$)"
         type="number"
@@ -84,7 +123,13 @@ function FormBox({ box, sedes, admin, aoSalvar, aoFechar }) {
         value={dados.valor}
         onChange={mudar("valor")}
         erro={erro?.campo("valor")}
-        ajuda={box?.alugado ? "Mensalidades futuras ainda não pagas passam a usar o novo valor." : undefined}
+        ajuda={
+          box?.alugado
+            ? "Mensalidades futuras ainda não pagas passam a usar o novo valor."
+            : tipoEscolhido && Number(dados.valor) !== Number(tipoEscolhido.valor)
+              ? `Valor de tabela: ${formatarMoeda(tipoEscolhido.valor)}`
+              : "Preenchido pelo catálogo; pode ser ajustado."
+        }
       />
       {box?.alugado && (
         <Selecao
@@ -481,7 +526,10 @@ export default function Boxes() {
                     <tr key={b.id} className="hover:bg-fundo">
                       <td className="px-5 py-3 font-semibold text-marinho">#{b.id}</td>
                       {usuario.admin && <td className="px-5 py-3">{b.sede_nome}</td>}
-                      <td className="px-5 py-3">{b.tamanho}</td>
+                      <td className="px-5 py-3">
+                        <p>{b.tamanho}</p>
+                        {b.tipo_detalhe && <p className="text-xs text-marinho-claro/60">{b.tipo_detalhe.dimensoes}</p>}
+                      </td>
                       <td className="px-5 py-3 tabular-nums">{formatarMoeda(b.valor)}</td>
                       <td className="px-5 py-3">
                         <Situacao box={b} />
@@ -532,7 +580,14 @@ export default function Boxes() {
       </div>
 
       <Modal aberto={janela?.tipo === "novo" || janela?.tipo === "editar"} titulo={janela?.box ? `Editar box #${janela.box.id}` : "Novo box"} aoFechar={fechar}>
-        <FormBox box={janela?.box} sedes={sedes} admin={usuario.admin} aoSalvar={aposSalvar} aoFechar={fechar} />
+        <FormBox
+          box={janela?.box}
+          sedes={sedes}
+          admin={usuario.admin}
+          sedePadrao={usuario.sede?.id}
+          aoSalvar={aposSalvar}
+          aoFechar={fechar}
+        />
       </Modal>
       <Modal aberto={janela?.tipo === "alugar"} titulo="Alugar box" aoFechar={fechar}>
         {janela?.tipo === "alugar" && (

@@ -15,6 +15,7 @@ function linksDo(usuario) {
     { para: "/mensalidades", rotulo: "Mensalidades", icone: IconeCalendario },
     { para: "/clientes", rotulo: "Clientes", icone: IconePessoas },
     { para: "/espera", rotulo: "Lista de espera", icone: IconeEspera },
+    { para: "/tamanhos", rotulo: "Tamanhos", icone: IconeCaixa },
   ];
   if (usuario.admin) links.push({ para: "/funcionarios", rotulo: "Funcionários", icone: IconeCracha });
   return links;
@@ -68,7 +69,7 @@ function Estrutura() {
             <img src={logo} alt="Newbox - Guarda tudo" className="h-10 w-auto" />
           </NavLink>
 
-          <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Principal">
+          <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Principal">
             {links.map((l) => (
               <NavLink key={l.para} to={l.para} end={l.fim} className={classeLink}>
                 {l.rotulo}
@@ -76,11 +77,11 @@ function Estrutura() {
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-1 lg:ml-0 lg:hidden">
+          <div className="ml-auto flex items-center gap-1 xl:ml-0 xl:hidden">
             <Sino />
           </div>
 
-          <div className="hidden items-center gap-3 lg:flex">
+          <div className="hidden items-center gap-3 xl:flex">
             <Sino />
             <div className="text-right leading-tight">
               <p className="text-sm font-medium">{primeiroNome(nome)}</p>
@@ -97,7 +98,7 @@ function Estrutura() {
           </div>
 
           <button
-            className="rounded-md p-2 text-marinho lg:hidden"
+            className="rounded-md p-2 text-marinho xl:hidden"
             onClick={() => setMenuAberto((v) => !v)}
             aria-label="Menu"
             aria-expanded={menuAberto}
@@ -107,7 +108,7 @@ function Estrutura() {
         </div>
 
         {menuAberto && (
-          <nav className="border-t border-roxo-100 px-4 pb-4 lg:hidden" aria-label="Principal (celular)">
+          <nav className="border-t border-roxo-100 px-4 pb-4 xl:hidden" aria-label="Principal (celular)">
             <div className="py-3 text-sm">
               <p className="font-medium">{nome}</p>
               <p className="text-xs text-roxo">{local}</p>

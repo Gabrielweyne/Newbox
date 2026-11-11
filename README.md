@@ -130,12 +130,26 @@ Segurança:
 A senha passa pelas regras de senha do Django (mínimo 8 caracteres, não pode ser comum,
 só numérica ou parecida com o nome/CPF).
 
+## Catálogo de tamanhos (por unidade)
+
+- Cada unidade tem seu catálogo (tela **Tamanhos**): código (P1, M1 SUP, G4...), dimensões,
+  área, volume, sugestão de uso e valor mensal. Carregado dos catálogos em PDF da Newbox Sede
+  (Cambeba) e da Newbox Cocó.
+- Ao cadastrar um box, escolhe-se o tamanho do catálogo e o valor vem preenchido (pode ser
+  ajustado). Ainda é possível cadastrar um tamanho "fora do catálogo".
+- Só o administrador altera o catálogo; a mudança vale na hora para a página pública e para os
+  próximos boxes (boxes já cadastrados mantêm o valor deles).
+- Cada unidade tem nome público ("Newbox Sede (Cambeba)", "Newbox Cocó") e o **próprio WhatsApp**
+  (editáveis em `/admin/` → Sedes).
+
 ## Página pública (visitantes)
 
-Em `/`: apresentação da Newbox, tamanhos disponíveis por unidade (em tempo real, só
-"disponível" ou "consulte"), endereços com link para o Google Maps e um formulário que abre o
-**WhatsApp** com a mensagem pronta (nome, unidade, tamanho, prazo). Contatos configuráveis no
-`.env`: `NEWBOX_WHATSAPP` (só números, com 55 + DDD), `NEWBOX_TELEFONE`, `NEWBOX_EMAIL`.
+Em `/`: conteúdo dos catálogos (diferenciais, soluções para empresas, facilidades extras), o
+**catálogo de cada unidade** com medidas, sugestão de uso, preço e disponibilidade em tempo real
+("Disponível" ou "Consulte"), endereços com Google Maps, horário e um formulário que abre o
+**WhatsApp da unidade escolhida** com a mensagem pronta. Configurável no `.env`:
+`NEWBOX_WHATSAPP` (principal, só números com 55 + DDD), `NEWBOX_TELEFONE`, `NEWBOX_EMAIL`,
+`NEWBOX_INSTAGRAM`, `NEWBOX_HORARIO`.
 
 ## Clientes e cobrança pelo WhatsApp
 
@@ -224,6 +238,7 @@ Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 | `/api/interessados/` | Lista de espera (CRUD). `?situacao=`. `GET .../oportunidades/` (quem já tem vaga na sua sede), `GET .../tamanhos/` |
 | `/api/disponibilidade/` | Boxes livres por sede e tamanho, com valor mínimo (sem dados de clientes) |
 | `/api/contratos/` | Contratos (somente leitura). `?cliente=`, `?box=`, `?ativo=true\|false`. `GET .../<id>/pdf/` baixa o PDF |
+| `/api/tipos/`     | Catálogo de tamanhos. `?sede=`. Leitura para todos; criar/editar/excluir só admin |
 | `/api/publico/`   | **Aberto.** Sedes, endereços, tamanhos de box e se há algum livre, mais os contatos (sem clientes, valores ou quantidades) |
 | `/admin/`         | Painel administrativo do Django                                           |
 
