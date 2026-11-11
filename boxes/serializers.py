@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from . import cobranca
-from .models import Box, Cliente, Funcionario, Mensalidade, Sede
+from .models import Box, Cliente, Funcionario, Interessado, Mensalidade, Sede
 from .permissions import sede_do_usuario
 from .validators import somente_digitos
 
@@ -184,3 +184,57 @@ class PagamentoSerializer(serializers.Serializer):
         if valor > cobranca.hoje():
             raise serializers.ValidationError("A data do pagamento não pode ser no futuro.")
         return valor
+
+
+class VagaSerializer(serializers.ModelSerializer):
+    sede_nome = serializers.CharField(source="sede.nome", read_only=True)
+
+    class Meta:
+        model = Box
+        fields = ["id", "sede", "sede_nome", "tamanho", "valor"]
+
+
+class InteressadoSerializer(serializers.ModelSerializer):
+    sede_nome = serializers.CharField(source="sede.nome", read_only=True, default=None)
+    criado_por_nome = serializers.SerializerMethodField()
+    # Boxes livres agora que servem para esta pessoa (qualquer sede)
+    vagas = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Interessado
+        fields = [
+            "id", "nome", "telefone", "sede", "sede_nome", "tamanho", "observacao",
+            "situacao", "criado_em", "contatado_em", "criado_por_nome", "vagas",
+        ]
+        read_only_fields = ["criado_em", "contatado_em"]
+        extra_kwargs = {"telefone": {"max_length": 25}}  # aceita "(85) 99999-9999"
+
+    def validate_telefone(self, valor):
+        digitos = somente_digitos(valor)
+        if len(digitos) in (12, 13) and digitos.startswith("55"):
+            digitos = digitos[2:]
+        if len(digitos) not in (10, 11):
+            raise serializers.ValidationError("Informe DDD + número. Ex.: (85) 99999-9999")
+        return digitos
+
+    def validate_tamanho(self, valor):
+        return (valor or "").strip()
+
+    def get_criado_por_nome(self, obj):
+        u = obj.criado_por
+        if not u:
+            return None
+        f = getattr(u, "funcionario", None)
+        return f.nome if f else "Administrador"
+
+    def get_vagas(self, obj):
+        from .espera import vagas_para
+
+        livres = self.context.get("livres")
+        if livres is None:
+            from .espera import boxes_livres
+
+            livres = boxes_livres()
+        if obj.situacao in (Interessado.ALUGOU, Interessado.DESISTIU):
+            return []
+        return VagaSerializer(vagas_para(obj, livres), many=True).data

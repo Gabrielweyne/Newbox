@@ -701,3 +701,86 @@ class PaginaPublicaTests(APITestCase):
 
     def test_endereco_cambeba(self):
         self.assertIn("Ciro Monteiro", Sede.objects.get(nome="Cambeba").endereco)
+
+
+from .models import Interessado  # noqa: E402
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
+class ListaDeEsperaTests(APITestCase):
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.cambeba = Sede.objects.get(nome="Cambeba")
+        self.ana = User.objects.create_user("52998224725")
+        Funcionario.objects.create(usuario=self.ana, nome="Ana Lima", cpf="52998224725", sede=self.coco)
+        self.beto = User.objects.create_user("11144477735")
+        Funcionario.objects.create(usuario=self.beto, nome="Beto", cpf="11144477735", sede=self.cambeba)
+        self.dono = Cliente.objects.create(nome="Dono Atual")
+        self.box_coco = Box.objects.create(
+            sede=self.coco, tamanho="3x3 m", valor=420, cliente=self.dono,
+            anexo_pagamento="c/x.pdf", dia_vencimento=5, alugado_em="2026-11-01",
+        )
+        self.client.force_authenticate(self.ana)
+
+    def anotar(self, **extra):
+        dados = {"nome": "Paula", "telefone": "(85) 99876-5432", "sede": self.coco.id, "tamanho": "3x3 m", **extra}
+        return self.client.post("/api/interessados/", dados)
+
+    def test_anotar_e_validar_telefone(self):
+        r = self.anotar()
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data["telefone"], "85998765432")
+        self.assertEqual(r.data["criado_por_nome"], "Ana Lima")
+        self.assertEqual(r.data["vagas"], [])
+        self.assertIn("telefone", self.anotar(telefone="123").data)
+        self.assertEqual(self.anotar(telefone="+55 85 99876-5432").data["telefone"], "85998765432")
+
+    def test_aviso_quando_box_libera(self):
+        self.anotar()
+        self.assertEqual(self.client.get("/api/interessados/oportunidades/").data, [])
+        self.client.post(f"/api/boxes/{self.box_coco.id}/liberar/")
+        r = self.client.get("/api/interessados/oportunidades/")
+        self.assertEqual([i["nome"] for i in r.data], ["Paula"])
+        self.assertEqual(r.data[0]["vagas"][0]["id"], self.box_coco.id)
+        # Beto (Cambeba) não recebe aviso de vaga do Cocó
+        self.client.force_authenticate(self.beto)
+        self.assertEqual(self.client.get("/api/interessados/oportunidades/").data, [])
+
+    def test_box_novo_tamanho_parecido_e_qualquer_sede(self):
+        self.anotar(sede="", tamanho="4X4m")
+        self.client.force_authenticate(self.beto)
+        self.client.post("/api/boxes/", {"tamanho": "4x4 m", "valor": "650"})
+        r = self.client.get("/api/interessados/oportunidades/")
+        self.assertEqual([i["nome"] for i in r.data], ["Paula"])
+        self.assertEqual(r.data[0]["vagas"][0]["sede_nome"], "Cambeba")
+
+    def test_contatado_sai_do_aviso(self):
+        self.anotar()
+        self.client.post(f"/api/boxes/{self.box_coco.id}/liberar/")
+        i = Interessado.objects.get()
+        r = self.client.patch(f"/api/interessados/{i.id}/", {"situacao": "contatado"})
+        self.assertIsNotNone(r.data["contatado_em"])
+        self.assertEqual(self.client.get("/api/interessados/oportunidades/").data, [])
+        r = self.client.patch(f"/api/interessados/{i.id}/", {"situacao": "alugou"})
+        self.assertEqual(r.data["vagas"], [])
+
+    def test_lista_compartilhada_entre_sedes(self):
+        self.anotar()
+        self.client.force_authenticate(self.beto)
+        self.assertEqual(self.client.get("/api/interessados/").data["count"], 1)
+
+    def test_disponibilidade_nas_duas_sedes(self):
+        Box.objects.create(sede=self.cambeba, tamanho="3x3 m ", valor=400)
+        Box.objects.create(sede=self.cambeba, tamanho="3X3 m", valor=380)
+        r = self.client.get("/api/disponibilidade/")
+        por_sede = {s["nome"]: s["tamanhos"] for s in r.data}
+        self.assertEqual(por_sede["Cocó"], [{"tamanho": "3x3 m", "livres": 0, "total": 1, "valor_a_partir": None}])
+        camb = por_sede["Cambeba"][0]
+        self.assertEqual((camb["livres"], camb["total"], str(camb["valor_a_partir"])), (2, 2, "380.00"))
+        self.assertNotIn("Dono", str(r.data))
+        self.assertEqual(self.client.get("/api/interessados/tamanhos/").data, ["3x3 m"])
+
+    def test_precisa_login(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get("/api/interessados/").status_code, 401)
+        self.assertEqual(self.client.get("/api/disponibilidade/").status_code, 401)

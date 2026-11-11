@@ -215,3 +215,48 @@ class Mensalidade(models.Model):
 
     def __str__(self):
         return f"Box {self.box_id} - {self.competencia:%m/%Y}"
+
+
+class Interessado(models.Model):
+    """
+    Lista de espera: pessoa que quer um box, mas não havia vaga quando chamou.
+
+    sede vazia = aceita qualquer unidade; tamanho vazio = aceita qualquer tamanho.
+    A lista é compartilhada entre as sedes.
+    """
+
+    AGUARDANDO = "aguardando"
+    CONTATADO = "contatado"
+    ALUGOU = "alugou"
+    DESISTIU = "desistiu"
+    SITUACOES = [
+        (AGUARDANDO, "Aguardando vaga"),
+        (CONTATADO, "Contatado"),
+        (ALUGOU, "Alugou"),
+        (DESISTIU, "Desistiu"),
+    ]
+
+    nome = models.CharField(max_length=150)
+    telefone = models.CharField("WhatsApp", max_length=11, help_text="DDD + número, só dígitos.")
+    sede = models.ForeignKey(
+        Sede, on_delete=models.SET_NULL, null=True, blank=True, related_name="interessados",
+        help_text="Vazio = qualquer unidade.",
+    )
+    tamanho = models.CharField(max_length=50, blank=True, help_text="Vazio = qualquer tamanho.")
+    observacao = models.CharField("observação", max_length=300, blank=True)
+    situacao = models.CharField("situação", max_length=12, choices=SITUACOES, default=AGUARDANDO)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    contatado_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["criado_em"]
+        constraints = [
+            models.CheckConstraint(condition=~Q(nome__regex=r"^\s*$"), name="interessado_nome_preenchido"),
+            models.CheckConstraint(condition=Q(telefone__regex=r"^[0-9]{10,11}$"), name="interessado_telefone_valido"),
+        ]
+
+    def __str__(self):
+        return f"{self.nome} ({self.get_situacao_display()})"

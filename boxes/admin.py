@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 
-from .models import Box, Cliente, Funcionario, Mensalidade, Sede
+from .models import Box, Cliente, Funcionario, Interessado, Mensalidade, Sede
 
 User = get_user_model()
 
@@ -97,3 +97,10 @@ class MensalidadeAdmin(admin.ModelAdmin):
     search_fields = ["cliente__nome", "box__id"]
     date_hierarchy = "vencimento"
     raw_id_fields = ["box", "cliente", "registrado_por"]
+
+
+@admin.register(Interessado)
+class InteressadoAdmin(admin.ModelAdmin):
+    list_display = ["nome", "telefone", "sede", "tamanho", "situacao", "criado_em"]
+    list_filter = ["situacao", "sede"]
+    search_fields = ["nome", "telefone"]

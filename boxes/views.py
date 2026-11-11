@@ -1,15 +1,18 @@
 from django.db.models import Count, Exists, OuterRef, ProtectedError, Q
+from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from . import cobranca
-from .models import Box, Cliente, Funcionario, Mensalidade, Sede
+from . import cobranca, espera
+from .models import Box, Cliente, Funcionario, Interessado, Mensalidade, Sede
 from .permissions import EhAdminOuFuncionario, SomenteAdminAltera, sede_do_usuario
 from .serializers import (
     BoxSerializer,
     ClienteSerializer,
     FuncionarioSerializer,
+    InteressadoSerializer,
     MensalidadeSerializer,
     PagamentoSerializer,
     SedeOpcaoSerializer,
@@ -239,3 +242,59 @@ class MensalidadeViewSet(FiltraPorSedeMixin, viewsets.ReadOnlyModelViewSet):
         mensalidade.registrado_por = None
         mensalidade.save(update_fields=["comprovante", "pago_em", "registrado_por"])
         return Response(self.get_serializer(mensalidade).data)
+
+
+class InteressadoViewSet(viewsets.ModelViewSet):
+    """
+    Lista de espera (compartilhada entre as sedes).
+
+    Filtro: ?situacao=aguardando|contatado|alugou|desistiu
+    GET /api/interessados/oportunidades/  -> quem está aguardando e já tem box
+        livre (na sede do funcionário; admin: todas). Usado no sininho.
+    GET /api/interessados/tamanhos/       -> tamanhos que existem nas sedes
+    """
+
+    serializer_class = InteressadoSerializer
+
+    def get_queryset(self):
+        qs = Interessado.objects.select_related("sede", "criado_por__funcionario")
+        if situacao := self.request.query_params.get("situacao"):
+            qs = qs.filter(situacao=situacao)
+        return qs
+
+    def get_serializer_context(self):
+        return {**super().get_serializer_context(), "livres": espera.boxes_livres()}
+
+    def perform_create(self, serializer):
+        serializer.save(criado_por=self.request.user)
+
+    def perform_update(self, serializer):
+        antes = serializer.instance.situacao
+        depois = serializer.validated_data.get("situacao", antes)
+        extra = {}
+        if depois != antes and depois != Interessado.AGUARDANDO and not serializer.instance.contatado_em:
+            extra["contatado_em"] = timezone.now()
+        if depois == Interessado.AGUARDANDO:
+            extra["contatado_em"] = None
+        serializer.save(**extra)
+
+    @action(detail=False, methods=["get"])
+    def oportunidades(self, request):
+        sede = sede_do_usuario(request.user)
+        itens = espera.oportunidades(sede)
+        dados = []
+        for interessado, vagas in itens:
+            item = InteressadoSerializer(interessado, context={"livres": vagas}).data
+            dados.append(item)
+        return Response(dados)
+
+    @action(detail=False, methods=["get"])
+    def tamanhos(self, request):
+        return Response(espera.tamanhos_cadastrados())
+
+
+class DisponibilidadeView(APIView):
+    """Boxes livres por sede e tamanho, para o funcionário consultar a outra sede."""
+
+    def get(self, request):
+        return Response(espera.disponibilidade())

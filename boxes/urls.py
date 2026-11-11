@@ -6,17 +6,27 @@ from .auth import EuView, LoginView, LogoutView, RegistroView
 from .publico import PublicoView
 from .senha import EsqueciSenhaView, RedefinirSenhaView
 
-from .views import BoxViewSet, ClienteViewSet, FuncionarioViewSet, MensalidadeViewSet, SedeViewSet
+from .views import (
+    BoxViewSet,
+    ClienteViewSet,
+    DisponibilidadeView,
+    FuncionarioViewSet,
+    InteressadoViewSet,
+    MensalidadeViewSet,
+    SedeViewSet,
+)
 
 router = DefaultRouter()
 router.register("sedes", SedeViewSet, basename="sede")
 router.register("clientes", ClienteViewSet, basename="cliente")
 router.register("boxes", BoxViewSet, basename="box")
 router.register("mensalidades", MensalidadeViewSet, basename="mensalidade")
+router.register("interessados", InteressadoViewSet, basename="interessado")
 router.register("funcionarios", FuncionarioViewSet, basename="funcionario")
 
 urlpatterns = [
     path("publico/", PublicoView.as_view(), name="publico"),
+    path("disponibilidade/", DisponibilidadeView.as_view(), name="disponibilidade"),
     path("auth/registro/", RegistroView.as_view(), name="registro"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
