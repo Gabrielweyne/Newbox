@@ -17,12 +17,51 @@ class SedeSerializer(serializers.ModelSerializer):
         fields = ["id", "nome", "endereco", "numero_de_box", "alugados", "nao_alugados"]
 
 
+def limpar_telefone(valor):
+    digitos = somente_digitos(valor)
+    if len(digitos) in (12, 13) and digitos.startswith("55"):
+        digitos = digitos[2:]
+    if len(digitos) not in (10, 11):
+        raise serializers.ValidationError("Informe DDD + número. Ex.: (85) 99999-9999")
+    return digitos
+
+
 class ClienteSerializer(serializers.ModelSerializer):
     total_boxes = serializers.IntegerField(read_only=True)
+    atrasadas = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Cliente
-        fields = ["id", "nome", "total_boxes"]
+        fields = ["id", "nome", "telefone", "cpf", "email", "total_boxes", "atrasadas"]
+        extra_kwargs = {
+            "telefone": {"max_length": 25, "required": True, "allow_blank": False},
+            "cpf": {"max_length": 14, "required": False},
+            "email": {"required": False},
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Clientes antigos podem não ter WhatsApp: na edição parcial ele não é exigido
+        if self.instance is not None and self.partial:
+            self.fields["telefone"].required = False
+
+    def validate_telefone(self, valor):
+        return limpar_telefone(valor)
+
+    def validate_cpf(self, valor):
+        cpf = somente_digitos(valor)
+        if not cpf:
+            return ""
+        Cliente._meta.get_field("cpf").run_validators(cpf)
+        existe = Cliente.objects.filter(cpf=cpf)
+        if self.instance:
+            existe = existe.exclude(pk=self.instance.pk)
+        if existe.exists():
+            raise serializers.ValidationError("Já existe cliente com este CPF.")
+        return cpf
+
+    def validate_email(self, valor):
+        return (valor or "").strip().lower()
 
 
 class BoxSerializer(serializers.ModelSerializer):
@@ -153,13 +192,14 @@ class MensalidadeSerializer(serializers.ModelSerializer):
     sede = serializers.IntegerField(source="box.sede_id", read_only=True)
     sede_nome = serializers.CharField(source="box.sede.nome", read_only=True)
     cliente_nome = serializers.CharField(source="cliente.nome", read_only=True)
+    cliente_telefone = serializers.CharField(source="cliente.telefone", read_only=True)
     situacao = serializers.SerializerMethodField()
     registrado_por_nome = serializers.SerializerMethodField()
 
     class Meta:
         model = Mensalidade
         fields = [
-            "id", "box", "box_tamanho", "sede", "sede_nome", "cliente", "cliente_nome",
+            "id", "box", "box_tamanho", "sede", "sede_nome", "cliente", "cliente_nome", "cliente_telefone",
             "competencia", "vencimento", "valor", "pago_em", "comprovante",
             "situacao", "registrado_por_nome",
         ]
@@ -210,12 +250,7 @@ class InteressadoSerializer(serializers.ModelSerializer):
         extra_kwargs = {"telefone": {"max_length": 25}}  # aceita "(85) 99999-9999"
 
     def validate_telefone(self, valor):
-        digitos = somente_digitos(valor)
-        if len(digitos) in (12, 13) and digitos.startswith("55"):
-            digitos = digitos[2:]
-        if len(digitos) not in (10, 11):
-            raise serializers.ValidationError("Informe DDD + número. Ex.: (85) 99999-9999")
-        return digitos
+        return limpar_telefone(valor)
 
     def validate_tamanho(self, valor):
         return (valor or "").strip()

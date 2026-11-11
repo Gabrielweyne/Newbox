@@ -30,9 +30,17 @@ class Sede(models.Model):
 
 
 class Cliente(models.Model):
-    """Cliente que aluga boxes. Um cliente pode ter muitos boxes."""
+    """
+    Cliente que aluga boxes. Um cliente pode ter muitos boxes.
+
+    WhatsApp é obrigatório para clientes novos (validado na API); clientes
+    antigos podem estar sem, até alguém completar o cadastro.
+    """
 
     nome = models.CharField(max_length=150)
+    telefone = models.CharField("WhatsApp", max_length=11, blank=True, help_text="DDD + número, só dígitos.")
+    cpf = models.CharField("CPF", max_length=11, blank=True, validators=[validar_cpf])
+    email = models.EmailField("e-mail", blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -40,6 +48,16 @@ class Cliente(models.Model):
         constraints = [
             models.CheckConstraint(
                 condition=~Q(nome__regex=r"^\s*$"), name="cliente_nome_preenchido"
+            ),
+            models.CheckConstraint(
+                condition=Q(telefone="") | Q(telefone__regex=r"^[0-9]{10,11}$"),
+                name="cliente_telefone_valido",
+            ),
+            models.CheckConstraint(
+                condition=Q(cpf="") | Q(cpf__regex=r"^[0-9]{11}$"), name="cliente_cpf_11_digitos"
+            ),
+            models.UniqueConstraint(
+                fields=["cpf"], condition=~Q(cpf=""), name="cliente_cpf_unico"
             ),
         ]
 

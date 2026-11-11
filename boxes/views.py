@@ -64,10 +64,44 @@ class ClienteViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
     serializer_class = ClienteSerializer
 
     def get_queryset(self):
-        qs = Cliente.objects.annotate(total_boxes=Count("boxes"))
+        sede = sede_do_usuario(self.request.user)
+        filtro_sede = Q() if sede is None else Q(mensalidades__box__sede_id=sede)
+        qs = Cliente.objects.annotate(
+            total_boxes=Count("boxes", distinct=True),
+            atrasadas=Count(
+                "mensalidades",
+                filter=filtro_sede & Q(mensalidades__pago_em__isnull=True, mensalidades__vencimento__lt=cobranca.hoje()),
+                distinct=True,
+            ),
+        )
         if busca := self.request.query_params.get("busca", "").strip():
-            qs = qs.filter(nome__icontains=busca)
+            digitos = "".join(c for c in busca if c.isdigit())
+            cond = Q(nome__icontains=busca)
+            if len(digitos) >= 3:
+                cond |= Q(telefone__contains=digitos) | Q(cpf__contains=digitos)
+            qs = qs.filter(cond)
         return qs.order_by("nome")
+
+    @action(detail=True, methods=["get"])
+    def ficha(self, request, pk=None):
+        """Boxes e mensalidades do cliente (funcionário: só os da própria sede)."""
+        cliente = self.get_object()
+        sede = sede_do_usuario(request.user)
+        boxes = cliente.boxes.select_related("sede")
+        mensalidades = cliente.mensalidades.select_related("box__sede", "cliente", "registrado_por__funcionario")
+        if sede is not None:
+            boxes = boxes.filter(sede_id=sede)
+            mensalidades = mensalidades.filter(box__sede_id=sede)
+        cobranca.garantir_mensalidades(boxes=Box.objects.filter(cliente=cliente))
+        ctx = {"request": request}
+        return Response({
+            "cliente": ClienteSerializer(self.get_queryset().get(pk=cliente.pk), context=ctx).data,
+            "boxes": BoxSerializer(boxes, many=True, context=ctx).data,
+            "mensalidades": MensalidadeSerializer(
+                mensalidades.order_by("-vencimento", "box_id"), many=True, context=ctx
+            ).data,
+            "outras_sedes": sede is not None and cliente.boxes.exclude(sede_id=sede).exists(),
+        })
 
 
 class BoxViewSet(FiltraPorSedeMixin, viewsets.ModelViewSet):

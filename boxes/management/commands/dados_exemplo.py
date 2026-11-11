@@ -61,7 +61,9 @@ class Command(BaseCommand):
             raise CommandError("O banco já tem dados. Use --apagar para recriar do zero.")
 
         hoje = cobranca.hoje()
-        coco, _ = Sede.objects.get_or_create(nome="Cocó", defaults={"endereco": "Cocó, Fortaleza - CE"})
+        coco, _ = Sede.objects.get_or_create(
+            nome="Cocó", defaults={"endereco": "Av. Engenheiro Santana Júnior, 1901 - Cocó, Fortaleza - CE"}
+        )
         cambeba, _ = Sede.objects.get_or_create(
             nome="Cambeba", defaults={"endereco": "Rua Ciro Monteiro, 368 - Cambeba, Fortaleza - CE (a 500 m do Shopping Via Sul)"}
         )
@@ -79,10 +81,12 @@ class Command(BaseCommand):
             Funcionario.objects.create(usuario=u, nome=nome, cpf=cpf, sede=sede)
 
         clientes = {
-            n: Cliente.objects.create(nome=n)
-            for n in ["Carlos Souza", "Mariana Alves", "Pedro Rocha", "Juliana Castro",
-                      "Rafael Lima", "Fernanda Costa", "Lucas Martins"]
+            n: Cliente.objects.create(nome=n, telefone=f"8599{i:03d}{i:04d}"[:11], email=f"{n.split()[0].lower()}@exemplo.com")
+            for i, n in enumerate(["Carlos Souza", "Mariana Alves", "Pedro Rocha", "Juliana Castro",
+                                   "Rafael Lima", "Fernanda Costa", "Lucas Martins"], start=1)
         }
+        clientes["Lucas Martins"].telefone = ""  # cliente antigo, sem WhatsApp cadastrado
+        clientes["Lucas Martins"].save()
 
         # (sede, tamanho, valor, cliente, dia de vencimento, meses alugado)
         boxes = [

@@ -784,3 +784,54 @@ class ListaDeEsperaTests(APITestCase):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get("/api/interessados/").status_code, 401)
         self.assertEqual(self.client.get("/api/disponibilidade/").status_code, 401)
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
+class ContatoClienteTests(APITestCase):
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.cambeba = Sede.objects.get(nome="Cambeba")
+        self.ana = User.objects.create_user("52998224725")
+        Funcionario.objects.create(usuario=self.ana, nome="Ana", cpf="52998224725", sede=self.coco)
+        self.client.force_authenticate(self.ana)
+
+    def test_whatsapp_obrigatorio_e_cpf_validado(self):
+        r = self.client.post("/api/clientes/", {"nome": "Sem Zap"})
+        self.assertIn("telefone", r.data)
+        r = self.client.post("/api/clientes/", {"nome": "Zé", "telefone": "(85) 99876-5432", "cpf": "529.982.247-25"})
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual((r.data["telefone"], r.data["cpf"]), ("85998765432", "52998224725"))
+        r = self.client.post("/api/clientes/", {"nome": "Outro", "telefone": "85911112222", "cpf": "529.982.247-25"})
+        self.assertIn("cpf", r.data)
+        r = self.client.post("/api/clientes/", {"nome": "Outro", "telefone": "85911112222", "cpf": "123.456.789-00"})
+        self.assertIn("cpf", r.data)
+
+    def test_cliente_antigo_sem_telefone_pode_ser_editado(self):
+        c = Cliente.objects.create(nome="Antigo")
+        r = self.client.patch(f"/api/clientes/{c.id}/", {"nome": "Antigo Silva"})
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data["telefone"], "")
+
+    def test_busca_por_telefone(self):
+        Cliente.objects.create(nome="Zé", telefone="85998765432")
+        r = self.client.get("/api/clientes/?busca=99876")
+        self.assertEqual([c["nome"] for c in r.data["results"]], ["Zé"])
+
+    def test_ficha_e_atrasadas_por_sede(self):
+        c = Cliente.objects.create(nome="Carlos", telefone="85998765432")
+        with no_dia(date(2026, 9, 1)):
+            for sede in (self.coco, self.cambeba):
+                b = Box.objects.create(sede=sede, tamanho="P", valor=100, cliente=c, anexo_pagamento="c/x.pdf",
+                                       dia_vencimento=5, alugado_em=date(2026, 9, 1))
+                cobranca.iniciar_aluguel(b)
+        with no_dia(date(2026, 11, 20)):
+            r = self.client.get(f"/api/clientes/{c.id}/ficha/")
+            self.assertEqual(len(r.data["boxes"]), 1)  # só o do Cocó
+            self.assertTrue(r.data["outras_sedes"])
+            self.assertEqual({m["sede_nome"] for m in r.data["mensalidades"]}, {"Cocó"})
+            self.assertEqual(r.data["cliente"]["atrasadas"], 2)  # out e nov do Cocó
+            m = self.client.get("/api/mensalidades/?situacao=atrasada").data["results"][0]
+            self.assertEqual(m["cliente_telefone"], "85998765432")
+
+    def test_endereco_coco(self):
+        self.assertIn("Santana Júnior, 1901", Sede.objects.get(nome="Cocó").endereco)
