@@ -36,7 +36,8 @@ npm install
 npm run dev
 ```
 
-Abra http://localhost:3000. Em desenvolvimento, o site repassa `/api` e `/media` para o Django
+Abra http://localhost:3000: a **página pública** (visitantes) fica em `/` e a **área dos
+funcionários** em `/painel` (login em `/login`). Em desenvolvimento, o site repassa `/api` e `/media` para o Django
 na porta 8000 (veja `frontend/vite.config.js`).
 
 Telas: login, cadastro, esqueci/redefinir senha, painel da sede (com vencimentos do dia e
@@ -129,6 +130,13 @@ Segurança:
 A senha passa pelas regras de senha do Django (mínimo 8 caracteres, não pode ser comum,
 só numérica ou parecida com o nome/CPF).
 
+## Página pública (visitantes)
+
+Em `/`: apresentação da Newbox, tamanhos disponíveis por unidade (em tempo real, só
+"disponível" ou "consulte"), endereços com link para o Google Maps e um formulário que abre o
+**WhatsApp** com a mensagem pronta (nome, unidade, tamanho, prazo). Contatos configuráveis no
+`.env`: `NEWBOX_WHATSAPP` (só números, com 55 + DDD), `NEWBOX_TELEFONE`, `NEWBOX_EMAIL`.
+
 ## Mensalidades e avisos de vencimento
 
 - Ao alugar, escolhe-se o **dia de vencimento**: 5, 10, 15, 20, 25 ou 30 (em meses mais curtos,
@@ -180,6 +188,7 @@ Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 | `/api/funcionarios/` | Consulta de funcionários. Filtros: `?sede=`, `?aprovado=true\|false`. Admin: `POST .../<id>/aprovar/` e `.../<id>/bloquear/` |
 | `/api/funcionarios/sedes/` | Aberto: lista as sedes para o formulário de cadastro |
 | `/api/mensalidades/` | Mensalidades. Filtros: `?competencia=AAAA-MM`, `?situacao=paga\|pendente\|atrasada\|vence_hoje\|a_vencer`, `?box=`, `?sede=`. `GET .../avisos/` (vencem hoje + atrasadas), `POST .../<id>/pagar/` (comprovante, pago_em), `POST .../<id>/desfazer/` |
+| `/api/publico/`   | **Aberto.** Sedes, endereços, tamanhos de box e se há algum livre, mais os contatos (sem clientes, valores ou quantidades) |
 | `/admin/`         | Painel administrativo do Django                                           |
 
 O comprovante é enviado como arquivo (`multipart/form-data`) no campo `anexo_pagamento`

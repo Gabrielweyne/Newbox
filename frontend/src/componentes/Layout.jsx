@@ -10,7 +10,7 @@ import Sino from "./Sino";
 
 function linksDo(usuario) {
   const links = [
-    { para: "/", rotulo: "Painel", icone: IconeCasa, fim: true },
+    { para: "/painel", rotulo: "Painel", icone: IconeCasa, fim: true },
     { para: "/boxes", rotulo: "Boxes", icone: IconeCaixa },
     { para: "/mensalidades", rotulo: "Mensalidades", icone: IconeCalendario },
     { para: "/clientes", rotulo: "Clientes", icone: IconePessoas },
@@ -63,7 +63,7 @@ function Estrutura() {
     <div className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-20 border-t-4 border-marinho bg-white/95 shadow-sm backdrop-blur">
         <div className="mx-auto flex h-18 max-w-6xl items-center justify-between gap-4 px-4">
-          <NavLink to="/" className="shrink-0">
+          <NavLink to="/painel" className="shrink-0">
             <img src={logo} alt="Newbox - Guarda tudo" className="h-10 w-auto" />
           </NavLink>
 

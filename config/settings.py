@@ -163,7 +163,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "boxes.paginacao.Paginacao",
     "PAGE_SIZE": 50,
-    "DEFAULT_THROTTLE_RATES": {"login": "10/min", "senha": "5/min"},
+    "DEFAULT_THROTTLE_RATES": {"login": "10/min", "senha": "5/min", "publico": "60/min"},
 }
 
 SIMPLE_JWT = {
@@ -195,3 +195,9 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 # Validade do link de redefinição de senha (segundos)
 PASSWORD_RESET_TIMEOUT = int(os.environ.get("PASSWORD_RESET_HORAS", "1")) * 3600
+
+# Contatos exibidos na página pública (visitantes)
+NEWBOX_WHATSAPP = os.environ.get("NEWBOX_WHATSAPP", "558599620414")  # só números, com 55 + DDD
+NEWBOX_TELEFONE = os.environ.get("NEWBOX_TELEFONE", "(85) 3458-1019")
+NEWBOX_EMAIL = os.environ.get("NEWBOX_EMAIL", "contato@newboxbrasil.com.br")
+NEWBOX_INSTAGRAM = os.environ.get("NEWBOX_INSTAGRAM", "")

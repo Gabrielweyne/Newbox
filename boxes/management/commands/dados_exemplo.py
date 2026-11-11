@@ -62,7 +62,7 @@ class Command(BaseCommand):
         hoje = cobranca.hoje()
         coco, _ = Sede.objects.get_or_create(nome="Cocó", defaults={"endereco": "Cocó, Fortaleza - CE"})
         cambeba, _ = Sede.objects.get_or_create(
-            nome="Cambeba", defaults={"endereco": "Rua Ciro Monteiro, 368 - Cambeba, Fortaleza - CE"}
+            nome="Cambeba", defaults={"endereco": "Rua Ciro Monteiro, 368 - Cambeba, Fortaleza - CE (a 500 m do Shopping Via Sul)"}
         )
 
         User.objects.create_superuser("11144477735", "admin@exemplo.com", SENHA, first_name="Administrador")

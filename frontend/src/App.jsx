@@ -11,6 +11,7 @@ import Login from "./paginas/Login";
 import Mensalidades from "./paginas/Mensalidades";
 import Painel from "./paginas/Painel";
 import RedefinirSenha from "./paginas/RedefinirSenha";
+import Visitantes from "./paginas/Visitantes";
 
 /** Só deixa passar quem está logado (e, se pedido, só administrador). */
 function Protegida({ children, soAdmin }) {
@@ -18,7 +19,7 @@ function Protegida({ children, soAdmin }) {
   const local = useLocation();
   if (usuario === undefined) return <Carregando />;
   if (!usuario) return <Navigate to="/login" replace state={{ de: local.pathname + local.search }} />;
-  if (soAdmin && !usuario.admin) return <Navigate to="/" replace />;
+  if (soAdmin && !usuario.admin) return <Navigate to="/painel" replace />;
   return children;
 }
 
@@ -26,7 +27,7 @@ function Protegida({ children, soAdmin }) {
 function Publica({ children }) {
   const { usuario } = useAuth();
   if (usuario === undefined) return <Carregando />;
-  return usuario ? <Navigate to="/" replace /> : children;
+  return usuario ? <Navigate to="/painel" replace /> : children;
 }
 
 function NaoEncontrada() {
@@ -34,7 +35,7 @@ function NaoEncontrada() {
     <div className="mx-auto max-w-md px-4 py-24 text-center">
       <p className="text-6xl font-semibold text-roxo-300">404</p>
       <p className="mt-4 text-marinho">Página não encontrada.</p>
-      <Link to="/" className="mt-6 inline-block font-medium text-roxo hover:underline">
+      <Link to="/painel" className="mt-6 inline-block font-medium text-roxo hover:underline">
         Voltar ao painel
       </Link>
     </div>
@@ -44,12 +45,13 @@ function NaoEncontrada() {
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Visitantes />} />
       <Route path="/login" element={<Publica><Login /></Publica>} />
       <Route path="/cadastro" element={<Publica><Cadastro /></Publica>} />
       <Route path="/esqueci-senha" element={<Publica><EsqueciSenha /></Publica>} />
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
       <Route element={<Protegida><Layout /></Protegida>}>
-        <Route index element={<Painel />} />
+        <Route path="painel" element={<Painel />} />
         <Route path="boxes" element={<Boxes />} />
         <Route path="clientes" element={<Clientes />} />
         <Route path="mensalidades" element={<Mensalidades />} />

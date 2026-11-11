@@ -12,7 +12,9 @@ export default function LayoutAcesso({ titulo, subtitulo, children, rodape }) {
           className="absolute inset-0 opacity-[0.06]"
           style={{ backgroundImage: "repeating-linear-gradient(90deg, #fff 0 2px, transparent 2px 16px)" }}
         />
-        <img src={logoBranco} alt="Newbox - Guarda tudo" className="relative h-24 w-auto self-start" />
+        <Link to="/" className="relative self-start" title="Voltar ao site">
+          <img src={logoBranco} alt="Newbox - Guarda tudo" className="h-24 w-auto" />
+        </Link>
         <p className="relative max-w-md text-4xl leading-tight font-normal">
           Se você precisa de espaço, <span className="text-roxo-300">nós temos o lugar.</span>
         </p>
@@ -22,13 +24,18 @@ export default function LayoutAcesso({ titulo, subtitulo, children, rodape }) {
 
       <section className="flex flex-col justify-center px-5 py-10 sm:px-10">
         <div className="mx-auto w-full max-w-md">
-          <Link to="/login" className="mb-10 inline-block lg:hidden">
+          <Link to="/" className="mb-10 inline-block lg:hidden">
             <img src={logo} alt="Newbox - Guarda tudo" className="h-12 w-auto" />
           </Link>
           <h1 className="text-2xl font-semibold text-marinho">{titulo}</h1>
           {subtitulo && <p className="mt-2 text-sm text-marinho-claro/70">{subtitulo}</p>}
           <div className="mt-8">{children}</div>
           {rodape && <div className="mt-8 text-center text-sm text-marinho-claro/80">{rodape}</div>}
+          <p className="mt-10 text-center text-xs">
+            <Link to="/" className="text-marinho-claro/60 hover:text-roxo">
+              ← Voltar ao site da Newbox
+            </Link>
+          </p>
         </div>
       </section>
     </div>

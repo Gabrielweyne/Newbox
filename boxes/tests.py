@@ -674,3 +674,30 @@ class DadosExemploTests(APITestCase):
     def test_nao_roda_em_producao(self):
         with self.assertRaises(Exception):
             call_command("dados_exemplo", stdout=StringIO())
+
+
+class PaginaPublicaTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.coco = Sede.objects.get(nome="Cocó")
+        cliente = Cliente.objects.create(nome="Segredo da Silva")
+        Box.objects.create(sede=self.coco, tamanho="3x3 m", valor=420, cliente=cliente,
+                           anexo_pagamento="c/x.pdf", dia_vencimento=5, alugado_em="2026-11-01")
+        Box.objects.create(sede=self.coco, tamanho="2x2 m", valor=250)
+        Box.objects.create(sede=self.coco, tamanho="2x2 m ", valor=250)
+
+    def test_sem_login_e_sem_dados_sensiveis(self):
+        r = self.client.get("/api/publico/")
+        self.assertEqual(r.status_code, 200)
+        coco = next(s for s in r.data["sedes"] if s["nome"] == "Cocó")
+        self.assertEqual(coco["tamanhos"], [
+            {"tamanho": "2x2 m", "disponivel": True},
+            {"tamanho": "3x3 m", "disponivel": False},
+        ])
+        texto = str(r.content)
+        for proibido in ("Segredo", "420", "250", "valor", "cliente"):
+            self.assertNotIn(proibido, texto)
+        self.assertEqual(r.data["contato"]["whatsapp"], "558599620414")
+
+    def test_endereco_cambeba(self):
+        self.assertIn("Ciro Monteiro", Sede.objects.get(nome="Cambeba").endereco)

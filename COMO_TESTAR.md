@@ -22,6 +22,9 @@ são o sistema rodando. Para desligar, feche essas janelas.
 > Se o Windows mostrar "O Windows protegeu o computador", clique em **Mais informações →
 > Executar assim mesmo**. Se o firewall perguntar, pode permitir o acesso.
 
+O endereço **http://localhost:3000** abre a **página pública** (a que os clientes veem). Para
+entrar no sistema, clique em **"Área do funcionário"** no topo.
+
 ## 3. Entre com um dos usuários de exemplo
 
 Senha de todos: **Newbox#2026**

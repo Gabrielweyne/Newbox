@@ -20,7 +20,7 @@ export default function Login() {
     setEnviando(true);
     try {
       await entrar(cpf, senha);
-      navegar(local.state?.de || "/", { replace: true });
+      navegar(local.state?.de || "/painel", { replace: true });
     } catch (err) {
       setErro(err.message);
     } finally {
