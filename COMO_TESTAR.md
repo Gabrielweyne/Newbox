@@ -62,7 +62,9 @@ Depois da primeira instalação, para ligar servidor e site **juntos numa só ja
 py rodar.py
 ```
 
-(Mac/Linux: `python3 rodar.py`.) No VS Code: **Terminal → Executar Tarefa de Compilação** (ou Ctrl+Shift+B). Para desligar, Ctrl+C.
+(Mac/Linux: `python3 rodar.py`.) Quando você receber uma versão nova do zip, basta
+descompactar por cima e rodar o mesmo comando: ele instala o que faltar e atualiza o banco
+sozinho. No VS Code: **Terminal → Executar Tarefa de Compilação** (ou Ctrl+Shift+B). Para desligar, Ctrl+C.
 
 ## Comandos úteis
 

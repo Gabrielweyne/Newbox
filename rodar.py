@@ -1,6 +1,9 @@
 """
 Inicia o servidor (Django) e o site (React) juntos, numa única janela.
 
+Antes de iniciar, atualiza sozinho o que for preciso depois de receber uma
+versão nova: dependências do Python e do site, e o banco de dados.
+
     py rodar.py        (Windows)
     python3 rodar.py   (Mac/Linux)
 
@@ -8,6 +11,7 @@ Para desligar os dois: Ctrl+C.
 Pré-requisito: já ter feito a instalação (iniciar.bat / iniciar.sh) uma vez.
 """
 
+import hashlib
 import os
 import subprocess
 import sys
@@ -26,6 +30,31 @@ if not (RAIZ / "frontend" / "node_modules").exists():
     sys.exit("Site não instalado. Rode primeiro o iniciar.bat (Windows) ou ./iniciar.sh (Mac/Linux).")
 
 
+def _impressao(arquivo):
+    return hashlib.sha256(arquivo.read_bytes()).hexdigest() if arquivo.exists() else ""
+
+
+def preparar():
+    """Instala dependências que mudaram e aplica migrações do banco."""
+    marcas = RAIZ / ".venv" / ".newbox-instalado"
+    antes = dict(l.split("=", 1) for l in marcas.read_text().splitlines() if "=" in l) if marcas.exists() else {}
+    agora = {
+        "python": _impressao(RAIZ / "requirements.txt"),
+        "site": _impressao(RAIZ / "frontend" / "package-lock.json"),
+    }
+    if antes.get("python") != agora["python"]:
+        print("Atualizando dependências do Python...", flush=True)
+        subprocess.run([str(PYTHON), "-m", "pip", "install", "--disable-pip-version-check", "-q",
+                        "-r", "requirements.txt"], cwd=RAIZ, check=True)
+    if antes.get("site") != agora["site"]:
+        print("Atualizando dependências do site...", flush=True)
+        subprocess.run(["npm", "install", "--no-fund", "--no-audit", "--loglevel=error"],
+                       cwd=RAIZ / "frontend", check=True, shell=WINDOWS)
+    print("Conferindo o banco de dados...", flush=True)
+    subprocess.run([str(PYTHON), "manage.py", "migrate", "-v", "0"], cwd=RAIZ, check=True)
+    marcas.write_text("\n".join(f"{k}={v}" for k, v in agora.items()))
+
+
 def repassar(processo, prefixo):
     """Mostra a saída de cada programa com uma etiqueta: [servidor] ou [site]."""
     for linha in processo.stdout:
@@ -40,6 +69,11 @@ def iniciar(comando, pasta, prefixo):
     threading.Thread(target=repassar, args=(p, prefixo), daemon=True).start()
     return p
 
+
+try:
+    preparar()
+except subprocess.CalledProcessError:
+    sys.exit("\nNão foi possível preparar o sistema. Copie a mensagem de erro acima e mande para o Claude.")
 
 servidor = iniciar([str(PYTHON), "-u", "manage.py", "runserver", "8000"], RAIZ, "[servidor]")
 site = iniciar(["npm", "run", "dev"], RAIZ / "frontend", "[site]    ")
