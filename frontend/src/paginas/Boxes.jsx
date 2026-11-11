@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import Confirmar from "../componentes/Confirmar";
+import ListaContratos, { BotaoPdf } from "../componentes/Contratos";
 import { Banner } from "../componentes/Layout";
 import {
   IconeBusca,
@@ -11,6 +12,7 @@ import {
   IconeLixo,
   IconeMais,
   IconeChave,
+  IconeHistorico,
 } from "../componentes/Icones";
 import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Selecao, Vazio } from "../componentes/ui";
 import { api, ErroApi, listarTudo } from "../api";
@@ -252,6 +254,23 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
   );
 }
 
+/* ---------- Histórico do box ---------- */
+
+function HistoricoBox({ box }) {
+  const [contratos, setContratos] = useState(null);
+  const [erro, setErro] = useState("");
+  useEffect(() => {
+    listarTudo(`/contratos/?box=${box.id}`).then(setContratos).catch((e) => setErro(e.message));
+  }, [box.id]);
+  if (erro) return <Aviso>{erro}</Aviso>;
+  if (!contratos) return <Carregando />;
+  return (
+    <div className="-mx-6 -mb-6 border-t border-roxo-100">
+      <ListaContratos contratos={contratos} mostrarCliente />
+    </div>
+  );
+}
+
 /* ---------- Página ---------- */
 
 function Situacao({ box }) {
@@ -279,6 +298,9 @@ function Acoes({ box, abrir }) {
           <a href={box.anexo_pagamento} target="_blank" rel="noreferrer" className={`${btn} text-roxo hover:bg-roxo-50`}>
             <IconeClipe className="size-4" /> Comprovante
           </a>
+          {box.contrato_ativo && (
+            <BotaoPdf id={box.contrato_ativo} rotulo="Contrato" className="!ring-0" />
+          )}
           <button onClick={() => abrir("liberar", box)} className={`${btn} text-marinho-claro hover:bg-roxo-50`}>
             <IconeDestravar className="size-4" /> Liberar
           </button>
@@ -288,6 +310,9 @@ function Acoes({ box, abrir }) {
           <IconeChave className="size-4" /> Alugar
         </button>
       )}
+      <button onClick={() => abrir("historico", box)} className={`${btn} text-marinho-claro hover:bg-roxo-50`} aria-label={`Histórico do box ${box.id}`} title="Histórico">
+        <IconeHistorico className="size-4" />
+      </button>
       <button onClick={() => abrir("editar", box)} className={`${btn} text-marinho-claro hover:bg-roxo-50`} aria-label={`Editar box ${box.id}`}>
         <IconeLapis className="size-4" />
       </button>
@@ -311,6 +336,7 @@ export default function Boxes() {
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState("");
   const [janela, setJanela] = useState(null); // { tipo, box }
+  const [recemAlugado, setRecemAlugado] = useState(null);
   const status = params.get("status") || "todos";
   const sedeFiltro = params.get("sede") || "";
 
@@ -411,6 +437,23 @@ export default function Boxes() {
         </div>
 
         <Aviso>{erro}</Aviso>
+        {(() => {
+          const b = recemAlugado && boxes?.find((x) => x.id === recemAlugado);
+          if (!b?.contrato_ativo) return null;
+          return (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              <span>
+                <strong>Box #{b.id} alugado para {b.cliente_nome}!</strong> O contrato já está pronto para imprimir e assinar.
+              </span>
+              <span className="flex items-center gap-2">
+                <BotaoPdf id={b.contrato_ativo} rotulo="Abrir contrato" className="bg-white" />
+                <button onClick={() => setRecemAlugado(null)} className="text-xs text-emerald-900/70 hover:underline">
+                  Fechar
+                </button>
+              </span>
+            </div>
+          );
+        })()}
         <Cartao className="overflow-hidden">
           {!boxes && !erro ? (
             <Carregando />
@@ -492,7 +535,19 @@ export default function Boxes() {
         <FormBox box={janela?.box} sedes={sedes} admin={usuario.admin} aoSalvar={aposSalvar} aoFechar={fechar} />
       </Modal>
       <Modal aberto={janela?.tipo === "alugar"} titulo="Alugar box" aoFechar={fechar}>
-        {janela?.tipo === "alugar" && <FormAlugar box={janela.box} aoSalvar={aposSalvar} aoFechar={fechar} />}
+        {janela?.tipo === "alugar" && (
+          <FormAlugar
+            box={janela.box}
+            aoSalvar={(b) => {
+              setRecemAlugado(b.id);
+              aposSalvar();
+            }}
+            aoFechar={fechar}
+          />
+        )}
+      </Modal>
+      <Modal aberto={janela?.tipo === "historico"} titulo={`Histórico do box #${janela?.box?.id}`} aoFechar={fechar}>
+        {janela?.tipo === "historico" && <HistoricoBox box={janela.box} />}
       </Modal>
       <Confirmar
         aberto={janela?.tipo === "liberar"}

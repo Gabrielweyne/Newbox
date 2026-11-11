@@ -75,7 +75,7 @@ async function renovarAccess() {
  * Faz uma chamada à API.
  * corpo: objeto (vira JSON) ou FormData (para envio de arquivo).
  */
-export async function api(caminho, { metodo = "GET", corpo, autenticar = true } = {}, tentativa = 0) {
+export async function api(caminho, { metodo = "GET", corpo, autenticar = true, arquivo = false } = {}, tentativa = 0) {
   const headers = {};
   let body;
   if (corpo instanceof FormData) body = corpo;
@@ -94,12 +94,13 @@ export async function api(caminho, { metodo = "GET", corpo, autenticar = true } 
   }
 
   if (resposta.status === 401 && autenticar && tokens?.refresh && tentativa === 0) {
-    if (await renovarAccess()) return api(caminho, { metodo, corpo, autenticar }, 1);
+    if (await renovarAccess()) return api(caminho, { metodo, corpo, autenticar, arquivo }, 1);
     salvarTokens(null);
     aoDeslogar();
   }
 
   if (resposta.status === 204) return null;
+  if (arquivo && resposta.ok) return resposta.blob();
   const dados = await resposta.json().catch(() => null);
   if (!resposta.ok) {
     if (resposta.status === 429) {
@@ -121,4 +122,29 @@ export async function listarTudo(caminho) {
     itens.push(...pagina.results);
   }
   return itens;
+}
+
+/**
+ * Abre um PDF protegido por login numa nova aba.
+ * A aba é aberta já no clique (antes do download) para o navegador não bloquear.
+ */
+export async function abrirPdf(caminho, nomeArquivo = "documento.pdf") {
+  const aba = window.open("", "_blank");
+  if (aba) aba.document.write("<p style='font-family:sans-serif;padding:2rem'>Gerando PDF...</p>");
+  try {
+    const blob = await api(caminho, { arquivo: true });
+    const url = URL.createObjectURL(blob);
+    if (aba) {
+      aba.location.href = url;
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nomeArquivo;
+      a.click();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (erro) {
+    aba?.close();
+    throw erro;
+  }
 }

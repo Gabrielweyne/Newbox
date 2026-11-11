@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import BotaoCobrar from "../componentes/BotaoCobrar";
+import ListaContratos from "../componentes/Contratos";
 import { Banner } from "../componentes/Layout";
 import { IconeClipe, IconeEmail, IconeLapis, IconeWhatsapp } from "../componentes/Icones";
 import RegistrarPagamento from "../componentes/RegistrarPagamento";
@@ -32,7 +33,7 @@ export default function FichaCliente() {
     );
   }
 
-  const { cliente, boxes, mensalidades } = ficha;
+  const { cliente, boxes, mensalidades, contratos } = ficha;
   const abertas = mensalidades.filter((m) => m.situacao !== "paga");
   const emAtraso = abertas.filter((m) => m.situacao === "atrasada");
   const totalAtraso = emAtraso.reduce((s, m) => s + Number(m.valor), 0);
@@ -116,7 +117,20 @@ export default function FichaCliente() {
           </Cartao>
         </div>
 
-        <Cartao className="overflow-hidden lg:col-span-2">
+        <div className="space-y-6 lg:col-span-2">
+        <Cartao className="overflow-hidden">
+          <div className="border-b border-roxo-100 px-5 py-4">
+            <h2 className="font-semibold text-marinho">Contratos</h2>
+            <p className="text-xs text-marinho-claro/70">
+              {contratos.length
+                ? `${contratos.length} contrato(s) · cliente desde ${formatarData(contratos[contratos.length - 1].inicio)}`
+                : "Nenhum contrato ainda"}
+            </p>
+          </div>
+          <ListaContratos contratos={contratos} />
+        </Cartao>
+
+        <Cartao className="overflow-hidden">
           <h2 className="border-b border-roxo-100 px-5 py-4 font-semibold text-marinho">Histórico de mensalidades</h2>
           {mensalidades.length === 0 ? (
             <Vazio titulo="Nenhuma mensalidade ainda" />
@@ -168,6 +182,7 @@ export default function FichaCliente() {
             </p>
           )}
         </Cartao>
+        </div>
       </div>
 
       <p className="mx-auto max-w-6xl px-4 pb-8 text-sm">

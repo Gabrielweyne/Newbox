@@ -171,3 +171,15 @@ export const IconeEspera = (p) => (
     <path d="M12 7.5V12l3 2" />
   </Svg>
 );
+export const IconeDocumento = (p) => (
+  <Svg {...p}>
+    <path d="M6 3h8l4 4v14H6Z" />
+    <path d="M14 3v4h4M9 12h6M9 16h6" />
+  </Svg>
+);
+export const IconeHistorico = (p) => (
+  <Svg {...p}>
+    <path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" />
+    <path d="M4 4v4.5h4.5M12 8v4l3 2" />
+  </Svg>
+);
