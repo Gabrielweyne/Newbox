@@ -201,3 +201,8 @@ NEWBOX_WHATSAPP = os.environ.get("NEWBOX_WHATSAPP", "558599620414")  # só núme
 NEWBOX_TELEFONE = os.environ.get("NEWBOX_TELEFONE", "(85) 3458-1019")
 NEWBOX_EMAIL = os.environ.get("NEWBOX_EMAIL", "contato@newboxbrasil.com.br")
 NEWBOX_INSTAGRAM = os.environ.get("NEWBOX_INSTAGRAM", "")
+
+# Dados da empresa no contrato em PDF (deixe o CNPJ vazio para não exibir)
+NEWBOX_RAZAO_SOCIAL = os.environ.get("NEWBOX_RAZAO_SOCIAL", "Newbox Self Storage")
+NEWBOX_CNPJ = os.environ.get("NEWBOX_CNPJ", "")
+NEWBOX_CIDADE = os.environ.get("NEWBOX_CIDADE", "Fortaleza")

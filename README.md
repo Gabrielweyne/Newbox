@@ -146,6 +146,18 @@ Em `/`: apresentação da Newbox, tamanhos disponíveis por unidade (em tempo re
 - Mensalidades **atrasadas** ou que **vencem hoje** têm o botão **Cobrar no WhatsApp**, com a
   mensagem pronta (box, valor e vencimento), no painel, na página de mensalidades e na ficha.
 
+## Contratos e histórico
+
+- Cada aluguel gera um **contrato** (cliente, box, valor, vencimento, início). Ao **liberar** o
+  box, o contrato é **encerrado** com a data de fim e fica no histórico.
+- **PDF do contrato**: botão "Contrato" no box alugado e "Baixar PDF" na ficha do cliente.
+- Ficha do cliente mostra todos os contratos, com **por quanto tempo** alugou; cada box tem
+  o botão **Histórico** com quem já o alugou.
+- Box ou cliente com contratos no histórico **não pode ser excluído** (para não perder o registro).
+- **As cláusulas são um modelo genérico**: revise com um advogado e edite em
+  `boxes/templates/contrato/clausulas.txt` (não precisa mexer no código). Dados da empresa no
+  `.env`: `NEWBOX_RAZAO_SOCIAL`, `NEWBOX_CNPJ`, `NEWBOX_CIDADE`.
+
 ## Lista de espera e vagas nas duas sedes
 
 - Quando um cliente chamar e não houver box livre, o funcionário anota em **Lista de espera**
@@ -211,6 +223,7 @@ Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 | `/api/mensalidades/` | Mensalidades. Filtros: `?competencia=AAAA-MM`, `?situacao=paga\|pendente\|atrasada\|vence_hoje\|a_vencer`, `?box=`, `?sede=`. `GET .../avisos/` (vencem hoje + atrasadas), `POST .../<id>/pagar/` (comprovante, pago_em), `POST .../<id>/desfazer/` |
 | `/api/interessados/` | Lista de espera (CRUD). `?situacao=`. `GET .../oportunidades/` (quem já tem vaga na sua sede), `GET .../tamanhos/` |
 | `/api/disponibilidade/` | Boxes livres por sede e tamanho, com valor mínimo (sem dados de clientes) |
+| `/api/contratos/` | Contratos (somente leitura). `?cliente=`, `?box=`, `?ativo=true\|false`. `GET .../<id>/pdf/` baixa o PDF |
 | `/api/publico/`   | **Aberto.** Sedes, endereços, tamanhos de box e se há algum livre, mais os contatos (sem clientes, valores ou quantidades) |
 | `/admin/`         | Painel administrativo do Django                                           |
 

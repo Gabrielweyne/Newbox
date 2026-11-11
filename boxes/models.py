@@ -278,3 +278,49 @@ class Interessado(models.Model):
 
     def __str__(self):
         return f"{self.nome} ({self.get_situacao_display()})"
+
+
+class Contrato(models.Model):
+    """
+    Um aluguel de box, do início ao fim. Fica como histórico depois que o box
+    é liberado. Só pode haver um contrato ativo (sem data de fim) por box.
+    Os valores são uma "foto" do momento do aluguel (atualizados se o box
+    tiver valor ou vencimento alterados enquanto o contrato está ativo).
+    """
+
+    box = models.ForeignKey(Box, on_delete=models.PROTECT, related_name="contratos")
+    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name="contratos")
+    tamanho = models.CharField(max_length=50)
+    valor = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    dia_vencimento = models.PositiveSmallIntegerField(choices=[(d, f"Dia {d}") for d in DIAS_VENCIMENTO])
+    inicio = models.DateField("início")
+    fim = models.DateField(null=True, blank=True, help_text="Vazio enquanto o contrato está ativo.")
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    encerrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-inicio", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["box"], condition=Q(fim__isnull=True), name="contrato_um_ativo_por_box"
+            ),
+            models.CheckConstraint(
+                condition=Q(fim__isnull=True) | Q(fim__gte=models.F("inicio")), name="contrato_fim_apos_inicio"
+            ),
+        ]
+
+    @property
+    def ativo(self):
+        return self.fim is None
+
+    @property
+    def numero(self):
+        return f"{self.inicio:%Y}-{self.pk:05d}"
+
+    def __str__(self):
+        return f"Contrato {self.numero} - {self.cliente} (box {self.box_id})"

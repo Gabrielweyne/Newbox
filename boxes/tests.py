@@ -835,3 +835,96 @@ class ContatoClienteTests(APITestCase):
 
     def test_endereco_coco(self):
         self.assertIn("Santana Júnior, 1901", Sede.objects.get(nome="Cocó").endereco)
+
+
+from .models import Contrato  # noqa: E402
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
+class ContratosTests(APITestCase):
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.cambeba = Sede.objects.get(nome="Cambeba")
+        self.ana = User.objects.create_user("52998224725")
+        Funcionario.objects.create(usuario=self.ana, nome="Ana Lima", cpf="52998224725", sede=self.coco)
+        self.cliente = Cliente.objects.create(nome="Carlos Souza", telefone="85998765432", cpf="24681357928")
+        self.box = Box.objects.create(sede=self.coco, tamanho="3x3 m", valor=420)
+        self.client.force_authenticate(self.ana)
+
+    def alugar(self, quando):
+        with no_dia(quando):
+            return self.client.patch(f"/api/boxes/{self.box.id}/", {
+                "cliente": self.cliente.id, "dia_vencimento": 10,
+                "anexo_pagamento": SimpleUploadedFile("c.pdf", b"%PDF", content_type="application/pdf"),
+            }, format="multipart")
+
+    def liberar(self, quando):
+        with no_dia(quando):
+            return self.client.post(f"/api/boxes/{self.box.id}/liberar/")
+
+    def test_duracao(self):
+        d = cobranca.duracao
+        self.assertEqual(d(date(2026, 1, 10), date(2026, 1, 10)), "menos de 1 dia")
+        self.assertEqual(d(date(2026, 1, 10), date(2026, 1, 25)), "15 dias")
+        self.assertEqual(d(date(2026, 1, 10), date(2026, 3, 20)), "2 meses e 10 dias")
+        self.assertEqual(d(date(2025, 1, 10), date(2026, 4, 10)), "1 ano e 3 meses")
+        self.assertEqual(d(date(2024, 1, 31), date(2024, 2, 29)), "29 dias")
+        self.assertEqual(d(date(2023, 5, 1), date(2026, 5, 1)), "3 anos")
+
+    def test_aluguel_abre_e_liberar_encerra(self):
+        self.alugar(date(2026, 1, 10))
+        c = Contrato.objects.get()
+        self.assertEqual((c.inicio, c.fim, c.valor, c.criado_por), (date(2026, 1, 10), None, 420, self.ana))
+        self.liberar(date(2026, 4, 15))
+        c.refresh_from_db()
+        self.assertEqual((c.fim, c.encerrado_por), (date(2026, 4, 15), self.ana))
+        # Novo aluguel do mesmo box = novo contrato; o antigo fica no histórico
+        self.alugar(date(2026, 5, 1))
+        with no_dia(date(2026, 6, 1)):
+            r = self.client.get(f"/api/contratos/?box={self.box.id}")
+        self.assertEqual([(x["inicio"], x["ativo"]) for x in r.data["results"]],
+                         [("2026-05-01", True), ("2026-01-10", False)])
+        self.assertEqual(r.data["results"][1]["duracao"], "3 meses e 5 dias")
+        self.assertEqual(r.data["results"][0]["duracao"], "1 mês")
+
+    def test_mudar_valor_atualiza_contrato_ativo(self):
+        self.alugar(date(2026, 1, 10))
+        with no_dia(date(2026, 2, 1)):
+            self.client.patch(f"/api/boxes/{self.box.id}/", {"valor": "450", "dia_vencimento": 20})
+        c = Contrato.objects.get()
+        self.assertEqual((c.valor, c.dia_vencimento), (450, 20))
+
+    def test_ficha_traz_contratos(self):
+        self.alugar(date(2026, 1, 10))
+        self.liberar(date(2026, 2, 10))
+        r = self.client.get(f"/api/clientes/{self.cliente.id}/ficha/")
+        self.assertEqual(len(r.data["contratos"]), 1)
+        self.assertFalse(r.data["contratos"][0]["ativo"])
+
+    def test_pdf(self):
+        self.alugar(date(2026, 1, 10))
+        c = Contrato.objects.get()
+        r = self.client.get(f"/api/contratos/{c.id}/pdf/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r.content.startswith(b"%PDF"))
+        self.assertIn(f"contrato-newbox-{c.numero}.pdf", r["Content-Disposition"])
+
+    def test_outra_sede_nao_ve(self):
+        self.alugar(date(2026, 1, 10))
+        c = Contrato.objects.get()
+        beto = User.objects.create_user("11144477735")
+        Funcionario.objects.create(usuario=beto, nome="Beto", cpf="11144477735", sede=self.cambeba)
+        self.client.force_authenticate(beto)
+        self.assertEqual(self.client.get(f"/api/contratos/{c.id}/pdf/").status_code, 404)
+        self.assertEqual(self.client.get("/api/contratos/").data["count"], 0)
+
+
+class ExclusaoComHistoricoTests(ContratosTests):
+    def test_nao_exclui_box_nem_cliente_com_historico(self):
+        self.alugar(date(2026, 1, 10))
+        self.liberar(date(2026, 2, 10))
+        r = self.client.delete(f"/api/boxes/{self.box.id}/")
+        self.assertEqual(r.status_code, 409)
+        self.assertIn("histórico", r.data["detail"])
+        self.assertEqual(self.client.delete(f"/api/clientes/{self.cliente.id}/").status_code, 409)

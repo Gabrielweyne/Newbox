@@ -80,10 +80,46 @@ def garantir_mensalidades(ate=None, boxes=None):
     return len(novas)
 
 
+def duracao(inicio, fim=None):
+    """Tempo de aluguel por extenso: "1 ano e 3 meses", "2 meses e 10 dias", "15 dias"."""
+    fim = fim or hoje()
+    meses = (fim.year - inicio.year) * 12 + (fim.month - inicio.month)
+    if fim.day < inicio.day:
+        meses -= 1
+    # dias que sobram depois dos meses cheios
+    ano, mes = divmod(inicio.month - 1 + meses, 12)
+    base = date(inicio.year + ano, mes + 1, min(inicio.day, calendar.monthrange(inicio.year + ano, mes + 1)[1]))
+    dias = (fim - base).days
+    anos, meses = divmod(meses, 12)
+
+    def plural(n, um, varios):
+        return f"{n} {um if n == 1 else varios}"
+
+    partes = []
+    if anos:
+        partes.append(plural(anos, "ano", "anos"))
+    if meses:
+        partes.append(plural(meses, "mês", "meses"))
+    if dias and not anos:
+        partes.append(plural(dias, "dia", "dias"))
+    if not partes:
+        return "menos de 1 dia" if fim == inicio else "1 dia"
+    return " e ".join([", ".join(partes[:-1]), partes[-1]] if len(partes) > 1 else partes)
+
+
 @transaction.atomic
 def iniciar_aluguel(box, usuario=None):
-    """Chamado logo depois de o box receber cliente: registra o 1º mês como pago."""
-    from .models import Mensalidade
+    """
+    Chamado logo depois de o box receber cliente: abre o contrato e registra
+    o 1º mês como pago.
+    """
+    from .models import Contrato, Mensalidade
+
+    if not Contrato.objects.filter(box=box, fim__isnull=True).exists():
+        Contrato.objects.create(
+            box=box, cliente_id=box.cliente_id, tamanho=box.tamanho, valor=box.valor,
+            dia_vencimento=box.dia_vencimento, inicio=box.alugado_em, criado_por=usuario,
+        )
 
     competencia = inicio_do_mes(box.alugado_em)
     Mensalidade.objects.update_or_create(
@@ -101,11 +137,13 @@ def iniciar_aluguel(box, usuario=None):
 
 
 @transaction.atomic
-def encerrar_aluguel(box):
+def encerrar_aluguel(box, usuario=None):
     """
-    Libera o box. Mensalidades ainda não vencidas e não pagas são apagadas;
-    as atrasadas continuam registradas (o cliente ainda deve).
+    Libera o box e encerra o contrato (fica no histórico). Mensalidades ainda
+    não vencidas e não pagas são apagadas; as atrasadas continuam registradas
+    (o cliente ainda deve).
     """
+    box.contratos.filter(fim__isnull=True).update(fim=max(hoje(), box.alugado_em or hoje()), encerrado_por=usuario)
     box.mensalidades.filter(pago_em__isnull=True, vencimento__gte=hoje()).delete()
     box.cliente = None
     box.anexo_pagamento = None

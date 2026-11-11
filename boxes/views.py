@@ -1,4 +1,5 @@
-from django.db.models import Count, Exists, OuterRef, ProtectedError, Q
+from django.db.models import Count, Exists, OuterRef, ProtectedError, Q, Subquery
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -6,11 +7,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from . import cobranca, espera
-from .models import Box, Cliente, Funcionario, Interessado, Mensalidade, Sede
+from .contrato_pdf import gerar_pdf_contrato
+from .models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede
 from .permissions import EhAdminOuFuncionario, SomenteAdminAltera, sede_do_usuario
 from .serializers import (
     BoxSerializer,
     ClienteSerializer,
+    ContratoSerializer,
     FuncionarioSerializer,
     InteressadoSerializer,
     MensalidadeSerializer,
@@ -31,16 +34,15 @@ class FiltraPorSedeMixin:
 
 
 class ProtegidoContraExclusaoMixin:
-    """Responde 409 em vez de erro 500 ao apagar registro que ainda tem boxes."""
+    """Responde 409 em vez de erro 500 ao apagar registro que tem vínculos."""
+
+    mensagem_protegido = "Não é possível excluir: existem boxes ou contratos vinculados."
 
     def destroy(self, request, *args, **kwargs):
         try:
             return super().destroy(request, *args, **kwargs)
         except ProtectedError:
-            return Response(
-                {"detail": "Não é possível excluir: existem boxes vinculados."},
-                status=status.HTTP_409_CONFLICT,
-            )
+            return Response({"detail": self.mensagem_protegido}, status=status.HTTP_409_CONFLICT)
 
 
 class SedeViewSet(FiltraPorSedeMixin, ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
@@ -100,11 +102,16 @@ class ClienteViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
             "mensalidades": MensalidadeSerializer(
                 mensalidades.order_by("-vencimento", "box_id"), many=True, context=ctx
             ).data,
+            "contratos": ContratoSerializer(
+                Contrato.objects.filter(cliente=cliente, **({} if sede is None else {"box__sede_id": sede}))
+                .select_related("box__sede", "cliente"),
+                many=True,
+            ).data,
             "outras_sedes": sede is not None and cliente.boxes.exclude(sede_id=sede).exists(),
         })
 
 
-class BoxViewSet(FiltraPorSedeMixin, viewsets.ModelViewSet):
+class BoxViewSet(FiltraPorSedeMixin, ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
     """
     Funcionário só vê e altera boxes da própria sede.
     Filtros opcionais: ?sede=<id>, ?cliente=<id>, ?alugado=true|false
@@ -113,13 +120,15 @@ class BoxViewSet(FiltraPorSedeMixin, viewsets.ModelViewSet):
     """
 
     serializer_class = BoxSerializer
+    mensagem_protegido = "Este box tem histórico de contratos e não pode ser excluído."
 
     def get_queryset(self):
         atrasada = Mensalidade.objects.filter(
             box=OuterRef("pk"), pago_em__isnull=True, vencimento__lt=cobranca.hoje()
         )
+        contrato = Contrato.objects.filter(box=OuterRef("pk"), fim__isnull=True).values("id")[:1]
         qs = self.filtrar_por_sede(Box.objects.select_related("sede", "cliente")).annotate(
-            em_atraso=Exists(atrasada)
+            em_atraso=Exists(atrasada), contrato_ativo=Subquery(contrato)
         )
         params = self.request.query_params
         if sede := params.get("sede"):
@@ -137,7 +146,7 @@ class BoxViewSet(FiltraPorSedeMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def liberar(self, request, pk=None):
         box = self.get_object()
-        cobranca.encerrar_aluguel(box)
+        cobranca.encerrar_aluguel(box, request.user)
         return Response(self.get_serializer(self.get_queryset().get(pk=box.pk)).data)
 
 
@@ -332,3 +341,33 @@ class DisponibilidadeView(APIView):
 
     def get(self, request):
         return Response(espera.disponibilidade())
+
+
+class ContratoViewSet(FiltraPorSedeMixin, viewsets.ReadOnlyModelViewSet):
+    """
+    Contratos (aluguéis) atuais e encerrados. Funcionário: só os da própria sede.
+
+    Filtros: ?cliente=<id>, ?box=<id>, ?ativo=true|false
+    GET /api/contratos/<id>/pdf/ -> contrato em PDF
+    """
+
+    serializer_class = ContratoSerializer
+    campo_sede = "box__sede_id"
+
+    def get_queryset(self):
+        qs = self.filtrar_por_sede(Contrato.objects.select_related("box__sede", "cliente"))
+        p = self.request.query_params
+        if cliente := p.get("cliente"):
+            qs = qs.filter(cliente_id=cliente)
+        if box := p.get("box"):
+            qs = qs.filter(box_id=box)
+        if (ativo := p.get("ativo")) in ("true", "false"):
+            qs = qs.filter(fim__isnull=(ativo == "true"))
+        return qs
+
+    @action(detail=True, methods=["get"])
+    def pdf(self, request, pk=None):
+        contrato = self.get_object()
+        resposta = HttpResponse(gerar_pdf_contrato(contrato), content_type="application/pdf")
+        resposta["Content-Disposition"] = f'inline; filename="contrato-newbox-{contrato.numero}.pdf"'
+        return resposta

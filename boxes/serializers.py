@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from . import cobranca
-from .models import Box, Cliente, Funcionario, Interessado, Mensalidade, Sede
+from .models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede
 from .permissions import sede_do_usuario
 from .validators import somente_digitos
 
@@ -76,13 +76,15 @@ class BoxSerializer(serializers.ModelSerializer):
     cliente_nome = serializers.CharField(source="cliente.nome", read_only=True, default=None)
     # True se há mensalidade vencida e não paga (vem anotado em BoxViewSet)
     em_atraso = serializers.BooleanField(read_only=True, default=False)
+    # id do contrato ativo (vem anotado em BoxViewSet)
+    contrato_ativo = serializers.IntegerField(read_only=True, default=None)
 
     class Meta:
         model = Box
         fields = [
             "id", "sede", "sede_nome", "tamanho", "valor",
             "cliente", "cliente_nome", "anexo_pagamento", "dia_vencimento", "alugado_em",
-            "alugado", "em_atraso",
+            "alugado", "em_atraso", "contrato_ativo",
         ]
         read_only_fields = ["alugado_em"]
         # Funcionário pode omitir a sede: usa a dele automaticamente
@@ -145,6 +147,7 @@ class BoxSerializer(serializers.ModelSerializer):
                 m.valor = box.valor
                 m.vencimento = cobranca.data_vencimento(m.competencia, box.dia_vencimento)
                 m.save(update_fields=["valor", "vencimento"])
+            box.contratos.filter(fim__isnull=True).update(valor=box.valor, dia_vencimento=box.dia_vencimento)
         return box
 
     def _validar_sede(self, attrs):
@@ -279,3 +282,23 @@ class InteressadoSerializer(serializers.ModelSerializer):
         if obj.situacao in (Interessado.ALUGOU, Interessado.DESISTIU):
             return []
         return VagaSerializer(vagas_para(obj, livres), many=True).data
+
+
+class ContratoSerializer(serializers.ModelSerializer):
+    numero = serializers.CharField(read_only=True)
+    ativo = serializers.BooleanField(read_only=True)
+    cliente_nome = serializers.CharField(source="cliente.nome", read_only=True)
+    sede = serializers.IntegerField(source="box.sede_id", read_only=True)
+    sede_nome = serializers.CharField(source="box.sede.nome", read_only=True)
+    duracao = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Contrato
+        fields = [
+            "id", "numero", "box", "sede", "sede_nome", "cliente", "cliente_nome", "tamanho",
+            "valor", "dia_vencimento", "inicio", "fim", "ativo", "duracao",
+        ]
+        read_only_fields = fields
+
+    def get_duracao(self, obj):
+        return cobranca.duracao(obj.inicio, obj.fim)

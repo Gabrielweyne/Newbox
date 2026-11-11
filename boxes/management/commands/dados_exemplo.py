@@ -20,7 +20,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from boxes import cobranca
-from boxes.models import Box, Cliente, Funcionario, Interessado, Mensalidade, Sede
+from boxes.models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede
 
 User = get_user_model()
 SENHA = "Newbox#2026"
@@ -52,6 +52,7 @@ class Command(BaseCommand):
             raise CommandError("Por segurança, este comando só roda com DJANGO_DEBUG=1.")
         if apagar:
             Interessado.objects.all().delete()
+            Contrato.objects.all().delete()
             Mensalidade.objects.all().delete()
             Box.objects.all().delete()
             Funcionario.objects.all().delete()
@@ -123,6 +124,14 @@ class Command(BaseCommand):
             m.pago_em = m.vencimento - timedelta(days=1)
             m.comprovante = comprovante()
             m.save()
+
+        # Histórico: contratos já encerrados (o box 4x4 do Cocó já foi do Pedro e da Juliana)
+        box_4x4 = Box.objects.get(sede=coco, tamanho="4x4 m")
+        for cliente, dias_inicio, dias_fim in [("Pedro Rocha", 540, 300), ("Juliana Castro", 280, 95)]:
+            Contrato.objects.create(
+                box=box_4x4, cliente=clientes[cliente], tamanho=box_4x4.tamanho, valor=600, dia_vencimento=15,
+                inicio=hoje - timedelta(days=dias_inicio), fim=hoje - timedelta(days=dias_fim),
+            )
 
         # Lista de espera: Rui espera um 3x3 no Cocó (libere o box do Pedro para ver o aviso);
         # Paula aceita qualquer unidade e já tem vaga de 5x5 na Cambeba.

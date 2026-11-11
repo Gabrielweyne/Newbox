@@ -1,0 +1,35 @@
+{% comment %}
+  CLÁUSULAS DO CONTRATO EM PDF.
+  Este é um MODELO GENÉRICO: revise o texto com o advogado da Newbox antes de usar.
+  Cada parágrafo separado por uma linha em branco vira um parágrafo no PDF.
+  Linhas que começam com "##" viram títulos de cláusula.
+  Variáveis disponíveis: {{ box }}, {{ tamanho }}, {{ unidade }}, {{ endereco }}, {{ valor }},
+  {{ dia_vencimento }}, {{ inicio }}, {{ fim }}, {{ cidade }}, {{ empresa }}.
+{% endcomment %}
+## Cláusula 1 – Do objeto
+
+A LOCADORA cede ao LOCATÁRIO o uso do box nº {{ box }}, de {{ tamanho }}, localizado na unidade {{ unidade }} ({{ endereco }}), destinado exclusivamente à guarda de bens de propriedade ou posse do LOCATÁRIO.
+
+## Cláusula 2 – Do prazo
+
+Este contrato vigora por prazo indeterminado, a partir de {{ inicio }}{% if fim %}, tendo sido encerrado em {{ fim }}{% endif %}.
+
+## Cláusula 3 – Do valor e do pagamento
+
+O LOCATÁRIO pagará à LOCADORA o valor mensal de {{ valor }}, com vencimento todo dia {{ dia_vencimento }} de cada mês. Nos meses com menos dias, o vencimento do dia 30 passa para o último dia do mês. O comprovante de pagamento deverá ser enviado à LOCADORA.
+
+## Cláusula 4 – Do uso do box
+
+É proibido guardar no box materiais inflamáveis, explosivos, tóxicos ou corrosivos, alimentos perecíveis, animais, armas, munições, entorpecentes ou quaisquer bens de origem ilícita. O box não pode ser usado como moradia, escritório ou ponto de comércio.
+
+## Cláusula 5 – Do acesso e da responsabilidade
+
+O acesso ao box segue o horário de funcionamento e as regras da unidade. A LOCADORA não tem acesso ao conteúdo do box nem o confere, cabendo ao LOCATÁRIO a responsabilidade pelos bens guardados.
+
+## Cláusula 6 – Da rescisão
+
+Qualquer das partes poderá encerrar este contrato mediante aviso prévio à outra parte. Ao final, o LOCATÁRIO deverá desocupar o box e quitar eventuais mensalidades em aberto.
+
+## Cláusula 7 – Do foro
+
+Fica eleito o foro da comarca de {{ cidade }}/CE para dirimir quaisquer questões decorrentes deste contrato.
