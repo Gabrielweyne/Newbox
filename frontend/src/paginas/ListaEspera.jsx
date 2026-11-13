@@ -184,7 +184,7 @@ export default function ListaEspera() {
             {!lista && !erro ? (
               <Carregando />
             ) : visiveis.length === 0 ? (
-              <Vazio icone={IconeEspera} titulo="Ninguém aqui">
+              <Vazio icone={IconeEspera} titulo="Ninguém esperando por aqui 😊">
                 {aba === "aguardando" && "Quando um cliente chamar e não houver vaga, anote aqui. Avisaremos quando liberar um box."}
               </Vazio>
             ) : (

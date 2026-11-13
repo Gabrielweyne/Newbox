@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import logo from "../assets/logo.png";
+import fotoCorredor from "../assets/fotos/boxes-corredor.jpg";
+import fotoFachada from "../assets/fotos/fachada.jpg";
+import fotoFachadaAlta from "../assets/fotos/fachada-alta.jpg";
+import fotoFachadaPerto from "../assets/fotos/fachada-perto.jpg";
+import fotoGalpao from "../assets/fotos/galpao.jpg";
 import logoBranco from "../assets/logo-branco.png";
 import { useAuth } from "../auth";
 import { AvisosProvider, useAvisos } from "../avisos";
@@ -194,25 +199,35 @@ function Estrutura() {
   );
 }
 
-/** Faixa de título, no estilo do banner "Home" do site. */
-export function Banner({ titulo, subtitulo, children }) {
+// Fotos reais da Newbox usadas no topo de cada página
+const FOTOS = {
+  "/painel": fotoFachada,
+  "/boxes": fotoCorredor,
+  "/mensalidades": fotoGalpao,
+  "/clientes": fotoFachadaPerto,
+  "/espera": fotoCorredor,
+  "/tamanhos": fotoGalpao,
+  "/comunicados": fotoFachadaAlta,
+  "/funcionarios": fotoFachadaPerto,
+};
+
+/** Faixa de título com foto da Newbox e degradê roxo. */
+export function Banner({ titulo, subtitulo, children, foto }) {
+  const local = useLocation();
+  const chave = Object.keys(FOTOS).find((k) => local.pathname.startsWith(k));
+  const imagem = foto || FOTOS[chave] || fotoGalpao;
   return (
-    <section className="relative overflow-hidden bg-marinho">
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-[0.07]"
-        style={{
-          backgroundImage: "repeating-linear-gradient(90deg, #fff 0 2px, transparent 2px 14px)",
-        }}
-      />
-      <div className="relative mx-auto flex max-w-6xl flex-col gap-4 px-4 py-9 sm:flex-row sm:items-end sm:justify-between">
+    <section className="relative overflow-hidden bg-roxo-700">
+      <img src={imagem} alt="" aria-hidden className="absolute inset-0 size-full object-cover" />
+      <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-noite/90 via-roxo-700/80 to-roxo/40" />
+      <div className="relative mx-auto flex max-w-6xl flex-col gap-4 px-4 py-10 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-medium tracking-wide text-roxo-300 sm:text-4xl">{titulo}</h1>
-          {subtitulo && <p className="mt-2 text-sm text-white/75">{subtitulo}</p>}
+          <h1 className="text-3xl font-medium tracking-wide text-white drop-shadow-sm sm:text-4xl">{titulo}</h1>
+          {subtitulo && <p className="mt-2 max-w-2xl text-sm text-white/85">{subtitulo}</p>}
         </div>
         {children && <div className="flex flex-wrap gap-2">{children}</div>}
       </div>
-      <div className="h-3 bg-noite" />
+      <div className="relative h-1.5 bg-amarelo" />
     </section>
   );
 }

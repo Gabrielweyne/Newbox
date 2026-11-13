@@ -13,11 +13,19 @@ import { useAuth } from "../auth";
 import { useAvisos } from "../avisos";
 import { formatarData, formatarMoeda, primeiroNome } from "../formato";
 
-function Numero({ icone: Icone, rotulo, valor, destaque, link }) {
+const BOLHAS = {
+  roxo: "bg-roxo-100 text-roxo",
+  amarelo: "bg-amber-100 text-amber-700",
+  verde: "bg-emerald-100 text-emerald-700",
+};
+
+function Numero({ icone: Icone, rotulo, valor, destaque, link, bolha = "roxo" }) {
   return (
     <Link to={link} className="group">
-      <Cartao className="flex h-full items-start gap-4 p-5 transition group-hover:ring-roxo-300">
-        <Icone className="size-10 shrink-0 text-roxo" strokeWidth={1.2} />
+      <Cartao className="flex h-full items-center gap-4 p-5 transition group-hover:-translate-y-0.5 group-hover:ring-roxo-300">
+        <span className={`flex size-14 shrink-0 items-center justify-center rounded-2xl ${BOLHAS[bolha]}`}>
+          <Icone className="size-7" strokeWidth={1.5} />
+        </span>
         <div>
           <p className="text-sm text-marinho-claro/70">{rotulo}</p>
           <p className={`mt-1 text-3xl font-semibold ${destaque || "text-marinho"}`}>{valor}</p>
@@ -34,9 +42,9 @@ function ResumoSede({ sede, receita, mostrarNome }) {
     <section>
       {mostrarNome && <h2 className="mb-4 text-lg font-semibold text-marinho">Sede {sede.nome}</h2>}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Numero icone={IconeCaixa} rotulo="Total de boxes" valor={sede.numero_de_box} link={base} />
+        <Numero icone={IconeCaixa} rotulo="Total de boxes" valor={sede.numero_de_box} link={base} bolha="amarelo" />
         <Numero icone={IconeCofre} rotulo="Alugados" valor={sede.alugados} destaque="text-roxo" link={`${base}&status=alugados`} />
-        <Numero icone={IconeChave} rotulo="Livres" valor={sede.nao_alugados} destaque="text-emerald-700" link={`${base}&status=livres`} />
+        <Numero icone={IconeChave} rotulo="Livres" valor={sede.nao_alugados} destaque="text-emerald-700" link={`${base}&status=livres`} bolha="verde" />
       </div>
       <Cartao className="mt-4 grid gap-6 p-5 sm:grid-cols-2">
         <div>
@@ -214,12 +222,23 @@ export default function Painel() {
   }, []);
 
   const nome = usuario.funcionario ? primeiroNome(usuario.funcionario.nome) : "Administrador";
+  const { avisos } = useAvisos();
+  const hora = new Date().getHours();
+  const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+  const emoji = hora < 12 ? "☀️" : hora < 18 ? "👋" : "🌙";
+  const pendencias = avisos?.pendencias ?? null;
+  const recado =
+    pendencias === null
+      ? "Carregando os avisos do dia..."
+      : pendencias === 0
+        ? "Tudo em dia por aqui! 🎉 Nenhuma pendência para hoje."
+        : `Hoje tem ${pendencias} ${pendencias === 1 ? "aviso" : "avisos"} para acompanhar. Bora? 💪`;
 
   return (
     <>
       <Banner
-        titulo={`Olá, ${nome}!`}
-        subtitulo={usuario.sede ? `Resumo da sede ${usuario.sede.nome}` : "Resumo das sedes da Newbox"}
+        titulo={`${saudacao}, ${nome}! ${emoji}`}
+        subtitulo={`${recado} ${usuario.sede ? `· Sede ${usuario.sede.nome}` : "· Todas as sedes"}`}
       />
       <div className="mx-auto max-w-6xl space-y-10 px-4 py-10">
         <Aviso>{erro}</Aviso>

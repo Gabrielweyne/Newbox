@@ -1,25 +1,25 @@
 import { Link } from "react-router";
 import logo from "../assets/logo.png";
+import fotoFachada from "../assets/fotos/fachada-perto.jpg";
 import logoBranco from "../assets/logo-branco.png";
 
 /** Layout das telas de login, cadastro e senha. */
 export default function LayoutAcesso({ titulo, subtitulo, children, rodape }) {
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-marinho p-12 text-white lg:flex">
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-[0.06]"
-          style={{ backgroundImage: "repeating-linear-gradient(90deg, #fff 0 2px, transparent 2px 16px)" }}
-        />
+      <aside className="relative hidden flex-col justify-between overflow-hidden bg-roxo-700 p-12 text-white lg:flex">
+        <img src={fotoFachada} alt="" aria-hidden className="absolute inset-0 size-full object-cover" />
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-noite/95 via-noite/55 to-roxo-700/30" />
         <Link to="/" className="relative self-start" title="Voltar ao site">
           <img src={logoBranco} alt="Newbox - Guarda tudo" className="h-24 w-auto" />
         </Link>
-        <p className="relative max-w-md text-4xl leading-tight font-normal">
-          Se você precisa de espaço, <span className="text-roxo-300">nós temos o lugar.</span>
-        </p>
-        <p className="relative text-sm text-white/60">Área do funcionário · Cocó e Cambeba</p>
-        <div aria-hidden className="absolute inset-x-0 bottom-0 h-3 bg-roxo" />
+        <div className="relative">
+          <p className="max-w-md text-4xl leading-tight font-normal drop-shadow">
+            Se você precisa de espaço, <span className="text-roxo-200">nós temos o lugar.</span>
+          </p>
+          <p className="mt-4 text-sm text-white/80">Que bom ter você no time! 💜 Área do funcionário · Cocó e Cambeba</p>
+        </div>
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-2 bg-amarelo" />
       </aside>
 
       <section className="flex flex-col justify-center px-5 py-10 sm:px-10">

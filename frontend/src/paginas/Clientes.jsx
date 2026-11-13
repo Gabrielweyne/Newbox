@@ -122,7 +122,7 @@ export default function Clientes() {
           {!clientes && !erro ? (
             <Carregando />
           ) : visiveis.length === 0 ? (
-            <Vazio icone={IconePessoas} titulo="Nenhum cliente encontrado">
+            <Vazio icone={IconePessoas} titulo="Nenhum cliente encontrado 🔍">
               {clientes?.length ? "Tente outro nome." : "Cadastre clientes aqui ou direto ao alugar um box."}
             </Vazio>
           ) : (

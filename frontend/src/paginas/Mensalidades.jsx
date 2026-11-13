@@ -178,7 +178,7 @@ export default function Mensalidades() {
           {!lista && !erro ? (
             <Carregando />
           ) : visiveis.length === 0 ? (
-            <Vazio icone={IconeCalendario} titulo="Nenhuma mensalidade aqui">
+            <Vazio icone={IconeCalendario} titulo={aba === "atrasada" ? "Nenhuma atrasada! 🎉" : "Nenhuma mensalidade aqui"}>
               {lista?.length ? "Nada nesta situação." : "Não há boxes alugados neste mês."}
             </Vazio>
           ) : (

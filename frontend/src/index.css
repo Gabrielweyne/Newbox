@@ -17,6 +17,8 @@
   --color-marinho-claro: #2c3e50; /* texto do logo */
   --color-noite: #251f3c;         /* faixa roxa escura */
   --color-fundo: #f7f5fa;
+  --color-amarelo: #f2b705;       /* portas dos boxes */
+  --color-rosa: #c04fa0;          /* fachada */
 }
 
 @layer base {

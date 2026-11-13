@@ -160,5 +160,5 @@ export function Vazio({ icone: Icone, titulo, children }) {
 }
 
 export function Cartao({ className = "", children }) {
-  return <div className={`rounded-xl bg-white shadow-sm ring-1 ring-roxo-100 ${className}`}>{children}</div>;
+  return <div className={`rounded-2xl bg-white shadow-[0_2px_12px_-4px_rgba(150,91,165,0.18)] ring-1 ring-roxo-100 ${className}`}>{children}</div>;
 }

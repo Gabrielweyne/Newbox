@@ -486,7 +486,7 @@ export default function Boxes() {
           return (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
               <span>
-                <strong>Box #{b.id} alugado para {b.cliente_nome}!</strong> O contrato já está pronto para imprimir e assinar.
+                <strong>🎉 Box #{b.id} alugado para {b.cliente_nome}!</strong> O contrato já está pronto para imprimir e assinar.
               </span>
               <span className="flex items-center gap-2">
                 <BotaoPdf id={b.contrato_ativo} rotulo="Abrir contrato" className="bg-white" />

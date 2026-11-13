@@ -86,7 +86,7 @@ export default function Sino() {
             {!avisos ? (
               <p className="px-4 py-6 text-center text-sm text-marinho-claro/70">Carregando...</p>
             ) : hoje.length === 0 && atrasadas.length === 0 && oportunidades.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-marinho-claro/70">Tudo em dia por aqui.</p>
+              <p className="px-4 py-6 text-center text-sm text-marinho-claro/70">Tudo em dia por aqui! 🎉</p>
             ) : (
               <>
                 {oportunidades.length > 0 && (

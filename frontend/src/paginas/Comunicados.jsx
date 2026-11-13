@@ -302,7 +302,7 @@ export default function Comunicados() {
           {!lista ? (
             <Carregando />
           ) : lista.length === 0 ? (
-            <Vazio icone={IconeMegafone} titulo="Nenhum comunicado enviado">
+            <Vazio icone={IconeMegafone} titulo="Nenhum comunicado ainda 📣">
               Use "Novo comunicado" para avisar os clientes sobre feriados, horários especiais e mais.
             </Vazio>
           ) : (
