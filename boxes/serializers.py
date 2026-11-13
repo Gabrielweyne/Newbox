@@ -61,11 +61,17 @@ def limpar_telefone(valor):
 class ClienteSerializer(serializers.ModelSerializer):
     total_boxes = serializers.IntegerField(read_only=True)
     atrasadas = serializers.IntegerField(read_only=True)
+    # Dias do mês em que vencem as mensalidades dos boxes do cliente (ex.: [5, 20])
+    dias_vencimento = serializers.SerializerMethodField()
+
+    def get_dias_vencimento(self, obj):
+        return sorted({b.dia_vencimento for b in obj.boxes.all() if b.dia_vencimento})
 
     class Meta:
         model = Cliente
         fields = [
             "id", "nome", "telefone", "cpf", "email", "endereco", "ativo", "excluido_em", "total_boxes", "atrasadas",
+            "dias_vencimento",
         ]
         read_only_fields = ["ativo", "excluido_em"]
         extra_kwargs = {

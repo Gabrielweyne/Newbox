@@ -1370,3 +1370,20 @@ class ImportarPlanilhaTests(APITestCase):
         self.assertIn("CNPJ inválido", str(r.data["cpf"]))
         pdf = self.client.get(f"/api/contratos/{Contrato.objects.get().id}/pdf/")
         self.assertEqual(pdf.status_code, 200)
+
+
+class FiltroDiaVencimentoTests(APITestCase):
+    def test_clientes_por_dia(self):
+        coco = Sede.objects.get(nome="Cocó")
+        ana = User.objects.create_user("52998224725")
+        Funcionario.objects.create(usuario=ana, nome="Ana", cpf="52998224725", sede=coco)
+        self.client.force_authenticate(ana)
+        a = Cliente.objects.create(nome="A", telefone="85999990000")
+        b = Cliente.objects.create(nome="B", telefone="85999990001")
+        for cli, dia in [(a, 5), (a, 20), (b, 10)]:
+            Box.objects.create(sede=coco, tamanho="P1", valor=1, cliente=cli, anexo_pagamento="c/x.pdf",
+                               dia_vencimento=dia, alugado_em="2026-11-01")
+        r = self.client.get("/api/clientes/")
+        self.assertEqual({c["nome"]: c["dias_vencimento"] for c in r.data["results"]}, {"A": [5, 20], "B": [10]})
+        r = self.client.get("/api/clientes/?dia=5")
+        self.assertEqual([c["nome"] for c in r.data["results"]], ["A"])

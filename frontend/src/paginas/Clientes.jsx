@@ -4,7 +4,7 @@ import { Banner } from "../componentes/Layout";
 import { IconeBusca, IconeLapis, IconePessoas, IconeWhatsapp } from "../componentes/Icones";
 import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Vazio } from "../componentes/ui";
 import { api, listarTudo } from "../api";
-import { formatarDocumento } from "../formato";
+import { DIAS_VENCIMENTO, formatarDocumento } from "../formato";
 import { formatarTelefone, linkWhatsapp } from "../whatsapp";
 
 /** Editar dados do cliente. Clientes novos só são cadastrados ao alugar um box. */
@@ -85,6 +85,7 @@ export default function Clientes() {
   const [busca, setBusca] = useState("");
   const [janela, setJanela] = useState(null);
   const [aba, setAba] = useState("ativos");
+  const [dia, setDia] = useState(null); // filtro por dia de vencimento
 
   const carregar = useCallback(() => {
     setClientes(null);
@@ -99,10 +100,11 @@ export default function Clientes() {
     const digitos = termo.replace(/\D/g, "");
     return (clientes || []).filter(
       (c) =>
-        c.nome.toLowerCase().includes(termo) ||
-        (digitos.length >= 3 && (c.telefone.includes(digitos) || c.cpf.includes(digitos)))
+        (!dia || c.dias_vencimento.includes(dia)) &&
+        (c.nome.toLowerCase().includes(termo) ||
+          (digitos.length >= 3 && (c.telefone.includes(digitos) || c.cpf.includes(digitos))))
     );
-  }, [clientes, busca]);
+  }, [clientes, busca, dia]);
 
   const fechar = () => setJanela(null);
 
@@ -137,6 +139,26 @@ export default function Clientes() {
             Quem já liberou todos os boxes. Contratos e pagamentos continuam guardados. Se a pessoa voltar, é só
             escolher o nome dela ao alugar um box: ela volta a ser cliente.
           </p>
+        )}
+        {aba === "ativos" && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="Dia de vencimento">
+            <span className="mr-1 text-marinho-claro/70">Pagam no dia:</span>
+            {[null, ...DIAS_VENCIMENTO].map((d) => (
+              <button
+                key={d ?? "todos"}
+                onClick={() => setDia(d)}
+                aria-pressed={dia === d}
+                className={`rounded-full px-3 py-1 transition ${
+                  dia === d ? "bg-amarelo font-medium text-marinho" : "bg-white text-marinho-claro ring-1 ring-roxo-100 hover:ring-roxo-300"
+                }`}
+              >
+                {d ? `Dia ${d}` : "Todos"}{" "}
+                <span className="opacity-70">
+                  ({clientes ? clientes.filter((c) => !d || c.dias_vencimento.includes(d)).length : "–"})
+                </span>
+              </button>
+            ))}
+          </div>
         )}
         <label className="relative mb-5 block sm:w-80">
           <span className="sr-only">Buscar cliente</span>
@@ -180,6 +202,7 @@ export default function Clientes() {
                         {c.total_boxes === 0
                           ? "nenhum box alugado"
                           : `${c.total_boxes} box${c.total_boxes > 1 ? "es" : ""} alugado${c.total_boxes > 1 ? "s" : ""}`}
+                        {c.dias_vencimento.length > 0 && ` · paga dia ${c.dias_vencimento.join(" e ")}`}
                         {c.excluido_em && ` · ex-cliente desde ${new Date(c.excluido_em).toLocaleDateString("pt-BR")}`}
                       </p>
                     </div>

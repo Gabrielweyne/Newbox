@@ -92,7 +92,7 @@ class ClienteViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         sede = sede_do_usuario(self.request.user)
         filtro_sede = Q() if sede is None else Q(mensalidades__box__sede_id=sede)
-        qs = Cliente.objects.annotate(
+        qs = Cliente.objects.prefetch_related("boxes").annotate(
             total_boxes=Count("boxes", distinct=True),
             atrasadas=Count(
                 "mensalidades",
@@ -106,6 +106,8 @@ class ClienteViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
             if len(digitos) >= 3:
                 cond |= Q(telefone__contains=digitos) | Q(cpf__contains=digitos)
             qs = qs.filter(cond)
+        if (dia := self.request.query_params.get("dia", "")).isdigit():
+            qs = qs.filter(boxes__dia_vencimento=int(dia)).distinct()
         if self.action == "list":
             # Lista mostra só os clientes; ?excluidos=true mostra os ex-clientes
             qs = qs.filter(ativo=self.request.query_params.get("excluidos") != "true")
