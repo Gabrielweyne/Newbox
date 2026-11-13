@@ -207,6 +207,26 @@ py manage.py importar_planilha dados_iniciais/boxes_e_clientes.csv --apagar-dado
 - Cada gráfico tem **Ver tabela** e **Baixar planilha** (CSV para o Excel). Período: 6, 12 ou 24 meses.
   O administrador escolhe a sede; o funcionário vê a dele. API: `GET /api/relatorios/?meses=12&sede=<id>`.
 
+## Segurança: backup e histórico de alterações (menu Mais > Segurança e backup, só administrador)
+
+**Backup**
+- Todo dia, ao abrir o sistema (`py rodar.py`), é feito um backup completo (dados + comprovantes) em
+  `backups/`. Ficam os últimos 30 (`NEWBOX_BACKUP_MANTER`). A pasta `backups/` não vai para o GitHub.
+- Com `NEWBOX_BACKUP_COPIA` no `.env` (ex.: a pasta do Google Drive), cada backup é copiado para lá:
+  assim existe uma cópia fora do computador.
+- Na tela **Segurança** o administrador faz um backup na hora e baixa qualquer um dos guardados.
+- Comandos: `manage.py backup` (no servidor, agendar 1x por dia) e
+  `manage.py restaurar_backup arquivo.zip --confirmar` (apaga os dados atuais e volta para os do backup;
+  antes faz um backup do estado atual). Restaurar **não** existe pelo site, de propósito.
+
+**Histórico de alterações**
+- Toda criação, alteração ou exclusão de clientes, boxes, mensalidades, contratos, lista de espera,
+  comunicados, funcionários, sedes e catálogo fica registrada: quem fez, quando e o valor antes/depois.
+- O administrador filtra por pessoa, tipo e ação, e pode **Desfazer** (volta os campos, recria o que foi
+  excluído ou apaga o que foi criado). Desfazer mexe só naquele registro; para voltar tudo, use um backup.
+- Funcionários não veem o histórico. API: `GET /api/alteracoes/`, `POST /api/alteracoes/<id>/desfazer/`,
+  `GET|POST /api/backups/`, `GET /api/backups/<nome>/`.
+
 ## Nota fiscal por e-mail
 
 - A nota fiscal (NFS-e) é **emitida fora do sistema** (prefeitura/contador). Em cada mensalidade,

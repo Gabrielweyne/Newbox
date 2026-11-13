@@ -15,6 +15,7 @@ import {
   IconeCalendario,
   IconeCasa,
   IconeCracha,
+  IconeEscudo,
   IconeEspera,
   IconeGrafico,
   IconeMegafone,
@@ -38,7 +39,10 @@ function linksDo(usuario) {
     { para: "/relatorios", rotulo: "Relatórios", icone: IconeGrafico, mais: true },
     { para: "/tamanhos", rotulo: "Tamanhos e preços", icone: IconeCaixa, mais: true },
   ];
-  if (usuario.admin) links.push({ para: "/funcionarios", rotulo: "Funcionários", icone: IconeCracha, mais: true });
+  if (usuario.admin) {
+    links.push({ para: "/funcionarios", rotulo: "Funcionários", icone: IconeCracha, mais: true });
+    links.push({ para: "/seguranca", rotulo: "Segurança e backup", icone: IconeEscudo, mais: true });
+  }
   return links;
 }
 
@@ -211,6 +215,7 @@ const FOTOS = {
   "/tamanhos": fotoGalpao,
   "/comunicados": fotoFachadaAlta,
   "/relatorios": fotoGalpao,
+  "/seguranca": fotoFachada,
   "/funcionarios": fotoFachadaPerto,
 };
 

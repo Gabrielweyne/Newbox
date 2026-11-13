@@ -14,6 +14,12 @@ const Svg = ({ children, className = "size-5", ...p }) => (
   </svg>
 );
 
+export const IconeEscudo = (p) => (
+  <Svg {...p}>
+    <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" />
+    <path d="M9 12l2 2 4-4" />
+  </Svg>
+);
 export const IconeGrafico = (p) => (
   <Svg {...p}>
     <path d="M4 4v16h16" />

@@ -1446,3 +1446,96 @@ class RelatoriosTests(APITestCase):
         self.assertEqual((r.data["sede"], r.data["meses"][0]["total"]), (self.camb.id, 1))
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get("/api/relatorios/").status_code, 401)
+
+
+import shutil  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from .models import Alteracao  # noqa: E402
+
+PASTA_BACKUP_TESTE = "/tmp/newbox-test-backups"
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media", NEWBOX_BACKUP_PASTA=PASTA_BACKUP_TESTE,
+                   NEWBOX_BACKUP_COPIA="/tmp/newbox-test-backups-copia")
+class SegurancaTests(APITestCase):
+    def setUp(self):
+        shutil.rmtree(PASTA_BACKUP_TESTE, ignore_errors=True)
+        shutil.rmtree("/tmp/newbox-test-backups-copia", ignore_errors=True)
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.ana = User.objects.create_user("52998224725")
+        Funcionario.objects.create(usuario=self.ana, nome="Ana Lima", cpf="52998224725", sede=self.coco)
+        self.admin = User.objects.create_user("chefe", is_staff=True)
+        self.cliente = Cliente.objects.create(nome="Carlos", telefone="85999990000", email="c@x.com")
+        Alteracao.objects.all().delete()
+
+    def test_historico_registra_quem_e_o_que_mudou(self):
+        self.client.force_authenticate(self.ana)
+        self.client.patch(f"/api/clientes/{self.cliente.id}/", {"nome": "Carlos Souza", "email": "novo@x.com"})
+        a = Alteracao.objects.get()
+        self.assertEqual((a.usuario_nome, a.acao, a.tipo, a.objeto), ("Ana Lima", "alterou", "cliente", "Carlos Souza"))
+        self.assertEqual(a.mudancas["nome"]["antes_txt"], "Carlos")
+        self.assertEqual(a.mudancas["email"]["depois"], "novo@x.com")
+        self.assertNotIn("telefone", a.mudancas)
+        # funcionário não vê o histórico; administrador vê
+        self.assertEqual(self.client.get("/api/alteracoes/").status_code, 403)
+        self.client.force_authenticate(self.admin)
+        r = self.client.get("/api/alteracoes/?usuario=Ana Lima")
+        self.assertEqual(r.data["count"], 1)
+        self.assertEqual(self.client.get("/api/alteracoes/quem/").data["usuarios"], ["Ana Lima"])
+        # desfazer
+        r = self.client.post(f"/api/alteracoes/{a.id}/desfazer/")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.cliente.refresh_from_db()
+        self.assertEqual((self.cliente.nome, self.cliente.email), ("Carlos", "c@x.com"))
+        self.assertEqual(self.client.post(f"/api/alteracoes/{a.id}/desfazer/").status_code, 409)
+        self.assertEqual(Alteracao.objects.latest("id").usuario_nome, "Administrador")
+
+    def test_desfazer_exclusao_recria_o_registro(self):
+        self.client.force_authenticate(self.ana)
+        i = self.client.post("/api/interessados/", {"nome": "Paula", "telefone": "85998765432",
+                                                     "email": "p@x.com", "sede": self.coco.id}).data
+        self.client.delete(f"/api/interessados/{i['id']}/")
+        self.assertFalse(Interessado.objects.exists())
+        excl = Alteracao.objects.get(acao="excluiu")
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.post(f"/api/alteracoes/{excl.id}/desfazer/").status_code, 200)
+        volta = Interessado.objects.get(pk=i["id"])
+        self.assertEqual((volta.nome, volta.email, volta.sede_id), ("Paula", "p@x.com", self.coco.id))
+
+    def test_restaurar_exige_confirmar(self):
+        with self.assertRaisesMessage(Exception, "--confirmar"):
+            call_command("restaurar_backup", __file__, stdout=StringIO())
+
+
+from rest_framework.test import APITransactionTestCase  # noqa: E402
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media", NEWBOX_BACKUP_PASTA=PASTA_BACKUP_TESTE,
+                   NEWBOX_BACKUP_COPIA="/tmp/newbox-test-backups-copia")
+class RestaurarBackupTests(APITransactionTestCase):
+    """Fora da transação de teste: restaurar apaga e recarrega o banco de verdade."""
+
+    serialized_rollback = True  # devolve sedes e catálogo (migrações) para os próximos testes
+    setUp = SegurancaTests.setUp
+
+    def test_backup_e_restaurar(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.get("/api/backups/").data["backups"], [])
+        r = self.client.post("/api/backups/")
+        self.assertEqual(r.status_code, 201)
+        nome = r.data["nome"]
+        self.assertTrue((Path("/tmp/newbox-test-backups-copia") / nome).exists())
+        r = self.client.get(f"/api/backups/{nome}/")
+        self.assertEqual((r.status_code, r["Content-Type"]), (200, "application/zip"))
+        self.assertEqual(self.client.get("/api/backups/..%2Fsettings.py/").status_code, 404)
+        self.client.force_authenticate(self.ana)
+        self.assertEqual(self.client.post("/api/backups/").status_code, 403)
+        # "ex-funcionário" estraga os dados; o backup volta tudo
+        Cliente.objects.filter(pk=self.cliente.pk).update(nome="APAGADO")
+        Interessado.objects.create(nome="Lixo", telefone="85911112222")
+        call_command("restaurar_backup", str(Path(PASTA_BACKUP_TESTE) / nome), "--confirmar", stdout=StringIO())
+        self.assertEqual(Cliente.objects.get(pk=self.cliente.pk).nome, "Carlos")
+        self.assertFalse(Interessado.objects.exists())
+        self.assertTrue(User.objects.filter(username="52998224725").exists())
+

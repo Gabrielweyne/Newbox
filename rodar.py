@@ -52,6 +52,9 @@ def preparar():
                        cwd=RAIZ / "frontend", check=True, shell=WINDOWS)
     print("Conferindo o banco de dados...", flush=True)
     subprocess.run([str(PYTHON), "manage.py", "migrate", "-v", "0"], cwd=RAIZ, check=True)
+    # Backup do dia (só o primeiro do dia; se falhar, avisa mas não impede de abrir)
+    if subprocess.run([str(PYTHON), "manage.py", "backup", "--se-precisar"], cwd=RAIZ).returncode:
+        print("ATENÇÃO: não foi possível fazer o backup de hoje.", flush=True)
     marcas.write_text("\n".join(f"{k}={v}" for k, v in agora.items()))
 
 

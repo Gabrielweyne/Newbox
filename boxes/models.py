@@ -467,3 +467,38 @@ class EnvioComunicado(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["comunicado", "cliente"], name="envio_unico_por_cliente"),
         ]
+
+
+class Alteracao(models.Model):
+    """
+    Histórico de alterações: quem criou, mudou ou excluiu o quê, e quando.
+    Gravado sozinho (ver boxes/auditoria.py); só o administrador consulta e desfaz.
+    """
+
+    CRIOU = "criou"
+    ALTEROU = "alterou"
+    EXCLUIU = "excluiu"
+    ACOES = [(CRIOU, "Criou"), (ALTEROU, "Alterou"), (EXCLUIU, "Excluiu")]
+
+    quando = models.DateTimeField(auto_now_add=True, db_index=True)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    usuario_nome = models.CharField("quem", max_length=150, help_text="Guardado à parte: continua mesmo se o usuário sumir.")
+    acao = models.CharField("ação", max_length=10, choices=ACOES)
+    modelo = models.CharField(max_length=60, help_text="Ex.: boxes.cliente")
+    tipo = models.CharField(max_length=60, help_text="Nome amigável. Ex.: cliente")
+    objeto_id = models.CharField(max_length=60)
+    objeto = models.CharField(max_length=200, help_text="Como o registro aparecia na hora.")
+    # {campo: {"rotulo", "antes", "depois", "antes_txt", "depois_txt"}}; na exclusão, "antes" de todos os campos
+    mudancas = models.JSONField(default=dict)
+    desfeita_em = models.DateTimeField(null=True, blank=True)
+    desfeita_por = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        ordering = ["-quando", "-id"]
+        verbose_name = "alteração"
+        verbose_name_plural = "alterações"
+
+    def __str__(self):
+        return f"{self.usuario_nome} {self.acao} {self.tipo} {self.objeto}"

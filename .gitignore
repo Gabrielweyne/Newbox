@@ -10,3 +10,6 @@ dados_iniciais/
 
 # Pacotes baixados
 *.whl
+
+# Backups (têm dados dos clientes)
+backups/

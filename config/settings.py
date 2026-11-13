@@ -59,6 +59,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "boxes.auditoria.UsuarioDaRequisicao",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -152,6 +153,12 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Arquivos enviados (comprovantes de pagamento)
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Backup (ver boxes/backup.py)
+NEWBOX_BACKUP_PASTA = os.environ.get("NEWBOX_BACKUP_PASTA") or str(BASE_DIR / "backups")
+# Pasta extra para uma cópia fora do computador (ex.: a pasta do Google Drive). Vazio = sem cópia.
+NEWBOX_BACKUP_COPIA = os.environ.get("NEWBOX_BACKUP_COPIA", "")
+NEWBOX_BACKUP_MANTER = int(os.environ.get("NEWBOX_BACKUP_MANTER", "30"))
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
