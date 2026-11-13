@@ -59,22 +59,10 @@ export default function FichaCliente() {
 
       {!cliente.ativo && (
         <div className="mx-auto mt-6 max-w-6xl px-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <span>
-              Este cliente foi <strong>excluído</strong> da lista
-              {cliente.excluido_em && ` em ${new Date(cliente.excluido_em).toLocaleDateString("pt-BR")}`}. O histórico abaixo
-              continua guardado.
-            </span>
-            <Botao
-              variante="secundario"
-              className="!py-1.5 text-xs"
-              onClick={async () => {
-                await api(`/clientes/${cliente.id}/reativar/`, { metodo: "POST" });
-                carregar();
-              }}
-            >
-              Reativar cliente
-            </Botao>
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <strong>Ex-cliente</strong>
+            {cliente.excluido_em && ` desde ${new Date(cliente.excluido_em).toLocaleDateString("pt-BR")}`}: não tem mais box
+            alugado. O histórico abaixo continua guardado. Se voltar, é só escolher o nome dele ao alugar um box.
           </div>
         </div>
       )}

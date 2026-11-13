@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import Confirmar from "../componentes/Confirmar";
 import { Banner } from "../componentes/Layout";
-import { IconeBusca, IconeLapis, IconeLixo, IconeMais, IconePessoas, IconeWhatsapp } from "../componentes/Icones";
+import { IconeBusca, IconeLapis, IconePessoas, IconeWhatsapp } from "../componentes/Icones";
 import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Vazio } from "../componentes/ui";
 import { api, listarTudo } from "../api";
 import { formatarCpf } from "../formato";
 import { formatarTelefone, linkWhatsapp } from "../whatsapp";
 
+/** Editar dados do cliente. Clientes novos só são cadastrados ao alugar um box. */
 export function FormCliente({ cliente, aoSalvar, aoFechar }) {
   const [dados, setDados] = useState({
     nome: cliente?.nome ?? "",
@@ -27,9 +27,7 @@ export function FormCliente({ cliente, aoSalvar, aoFechar }) {
     setEnviando(true);
     setErro(null);
     try {
-      const salvo = await (cliente
-        ? api(`/clientes/${cliente.id}/`, { metodo: "PATCH", corpo: dados })
-        : api("/clientes/", { metodo: "POST", corpo: dados }));
+      const salvo = await api(`/clientes/${cliente.id}/`, { metodo: "PATCH", corpo: dados });
       aoSalvar(salvo);
     } catch (err) {
       setErro(err);
@@ -66,7 +64,7 @@ export function FormCliente({ cliente, aoSalvar, aoFechar }) {
           Cancelar
         </Botao>
         <Botao type="submit" carregando={enviando}>
-          {cliente ? "Salvar" : "Cadastrar cliente"}
+          Salvar
         </Botao>
       </div>
     </form>
@@ -102,17 +100,16 @@ export default function Clientes() {
 
   return (
     <>
-      <Banner titulo="Clientes" subtitulo="Clientes compartilhados entre as sedes Cocó e Cambeba">
-        <Botao onClick={() => setJanela({ tipo: "novo" })}>
-          <IconeMais className="size-4" /> Novo cliente
-        </Botao>
-      </Banner>
+      <Banner
+        titulo="Clientes"
+        subtitulo="Quem está com box alugado (nas sedes Cocó e Cambeba). Cliente novo é cadastrado ao alugar um box."
+      />
 
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-4 flex flex-wrap gap-2" role="tablist">
           {[
             ["ativos", "Clientes"],
-            ["excluidos", "Excluídos"],
+            ["excluidos", "Ex-clientes"],
           ].map(([v, r]) => (
             <button
               key={v}
@@ -129,7 +126,8 @@ export default function Clientes() {
         </div>
         {aba === "excluidos" && (
           <p className="mb-4 text-sm text-marinho-claro/70">
-            Clientes excluídos ao liberar o box. O histórico continua guardado; reative se o cliente voltar.
+            Quem já liberou todos os boxes. Contratos e pagamentos continuam guardados. Se a pessoa voltar, é só
+            escolher o nome dela ao alugar um box: ela volta a ser cliente.
           </p>
         )}
         <label className="relative mb-5 block sm:w-80">
@@ -151,10 +149,10 @@ export default function Clientes() {
           ) : visiveis.length === 0 ? (
             <Vazio icone={IconePessoas} titulo="Nenhum cliente encontrado 🔍">
               {aba === "excluidos"
-                ? "Nenhum cliente excluído."
+                ? "Nenhum ex-cliente."
                 : clientes?.length
                   ? "Tente outro nome."
-                  : "Cadastre clientes aqui ou direto ao alugar um box."}
+                  : "Os clientes aparecem aqui quando um box é alugado."}
             </Vazio>
           ) : (
             <ul className="divide-y divide-roxo-100">
@@ -174,22 +172,11 @@ export default function Clientes() {
                         {c.total_boxes === 0
                           ? "nenhum box alugado"
                           : `${c.total_boxes} box${c.total_boxes > 1 ? "es" : ""} alugado${c.total_boxes > 1 ? "s" : ""}`}
-                        {c.excluido_em && ` · excluído em ${new Date(c.excluido_em).toLocaleDateString("pt-BR")}`}
+                        {c.excluido_em && ` · ex-cliente desde ${new Date(c.excluido_em).toLocaleDateString("pt-BR")}`}
                       </p>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    {!c.ativo && (
-                      <button
-                        onClick={async () => {
-                          await api(`/clientes/${c.id}/reativar/`, { metodo: "POST" }).catch((e) => setErro(e.message));
-                          carregar();
-                        }}
-                        className="mr-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-roxo ring-1 ring-roxo-200 hover:bg-roxo-50"
-                      >
-                        Reativar
-                      </button>
-                    )}
                     {c.telefone && (
                       <a
                         href={linkWhatsapp(c.telefone)}
@@ -208,13 +195,6 @@ export default function Clientes() {
                     >
                       <IconeLapis className="size-4" />
                     </button>
-                    <button
-                      onClick={() => setJanela({ tipo: "excluir", cliente: c })}
-                      className="rounded-md p-2 text-red-700 hover:bg-red-50"
-                      aria-label={`Excluir ${c.nome}`}
-                    >
-                      <IconeLixo className="size-4" />
-                    </button>
                   </div>
                 </li>
               ))}
@@ -223,7 +203,7 @@ export default function Clientes() {
         </Cartao>
       </div>
 
-      <Modal aberto={janela?.tipo === "novo" || janela?.tipo === "editar"} titulo={janela?.cliente ? "Editar cliente" : "Novo cliente"} aoFechar={fechar}>
+      <Modal aberto={janela?.tipo === "editar"} titulo="Editar cliente" aoFechar={fechar}>
         <FormCliente
           cliente={janela?.cliente}
           aoFechar={fechar}
@@ -233,19 +213,6 @@ export default function Clientes() {
           }}
         />
       </Modal>
-      <Confirmar
-        aberto={janela?.tipo === "excluir"}
-        titulo={`Excluir ${janela?.cliente?.nome}?`}
-        textoBotao="Excluir"
-        variante="perigo"
-        aoFechar={fechar}
-        aoConfirmar={async () => {
-          await api(`/clientes/${janela.cliente.id}/`, { metodo: "DELETE" });
-          carregar();
-        }}
-      >
-        <p>Só é possível excluir clientes que não estão alugando nenhum box.</p>
-      </Confirmar>
     </>
   );
 }

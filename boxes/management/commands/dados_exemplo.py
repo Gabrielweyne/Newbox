@@ -142,8 +142,8 @@ class Command(BaseCommand):
 
         # Lista de espera: Rui espera um P3 no Cocó (libere o box do Pedro para ver o aviso);
         # Paula aceita qualquer unidade e já tem vaga de G2 na Sede (Cambeba).
-        Interessado.objects.create(nome="Rui Barbosa", telefone="85988887777", sede=coco, tamanho="P3")
-        Interessado.objects.create(nome="Paula Souza", telefone="85998765432", tamanho="G2",
+        Interessado.objects.create(nome="Rui Barbosa", telefone="85988887777", email="rui@exemplo.com", sede=coco, tamanho="P3")
+        Interessado.objects.create(nome="Paula Souza", telefone="85998765432", email="paula@exemplo.com", tamanho="G2",
                                    observacao="mudança em dezembro")
 
         self.stdout.write(self.style.SUCCESS("Dados de exemplo criados!"))

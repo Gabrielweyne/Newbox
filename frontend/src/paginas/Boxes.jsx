@@ -16,7 +16,7 @@ import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Selecao, Vazi
 import { api, ErroApi, listarTudo } from "../api";
 import { useAuth } from "../auth";
 import { useAvisos } from "../avisos";
-import { DIAS_VENCIMENTO, formatarMoeda, formatarNumero } from "../formato";
+import { DIAS_VENCIMENTO, formatarCpf, formatarMoeda, formatarNumero } from "../formato";
 import { formatarTelefone } from "../whatsapp";
 
 /* ---------- Formulário de box (novo / editar) ---------- */
@@ -157,41 +157,72 @@ function FormBox({ box, sedes, admin, sedePadrao, aoSalvar, aoFechar }) {
 
 /* ---------- Alugar box: cliente + comprovante ---------- */
 
-function FormAlugar({ box, aoSalvar, aoFechar }) {
+const soDigitos = (v) => String(v || "").replace(/\D/g, "");
+
+/**
+ * Aluga um box. É o único lugar onde nasce um cliente novo (não existe cliente sem box).
+ * Com `interessado` (alguém da lista de espera), os dados dele já vêm preenchidos.
+ */
+export function FormAlugar({ box, interessado, aoSalvar, aoFechar }) {
   const [clientes, setClientes] = useState(null);
+  const [exClientes, setExClientes] = useState([]);
   const [cliente, setCliente] = useState("");
-  const [novoNome, setNovoNome] = useState("");
-  const [novoTelefone, setNovoTelefone] = useState("");
-  const [novoEmail, setNovoEmail] = useState("");
+  const [novo, setNovo] = useState({ nome: "", telefone: "", email: "", cpf: "" });
   const [arquivo, setArquivo] = useState(null);
   const [dia, setDia] = useState("");
   const [erro, setErro] = useState(null);
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    listarTudo("/clientes/").then(setClientes).catch((e) => setErro(e));
-  }, []);
+    Promise.all([listarTudo("/clientes/"), listarTudo("/clientes/?excluidos=true")])
+      .then(([ativos, ex]) => {
+        setClientes(ativos);
+        setExClientes(ex);
+        if (!interessado) return;
+        // A pessoa da lista de espera já é (ou já foi) cliente? Usa o cadastro dela.
+        const email = (interessado.email || "").toLowerCase();
+        const tel = soDigitos(interessado.telefone);
+        const achado = [...ativos, ...ex].find(
+          (c) => (email && c.email?.toLowerCase() === email) || (tel && soDigitos(c.telefone) === tel)
+        );
+        if (achado) setCliente(String(achado.id));
+        else {
+          setCliente("novo");
+          setNovo({
+            nome: interessado.nome || "",
+            telefone: formatarTelefone(interessado.telefone || ""),
+            email: interessado.email || "",
+            cpf: "",
+          });
+        }
+      })
+      .catch((e) => setErro(e));
+  }, [interessado]);
 
-  const novo = cliente === "novo";
+  const ehNovo = cliente === "novo";
+  const exEscolhido = exClientes.find((c) => String(c.id) === cliente);
+  const mudarNovo = (c) => (e) => {
+    const v = e.target.value;
+    setNovo((d) => ({ ...d, [c]: c === "telefone" ? formatarTelefone(v) : c === "cpf" ? formatarCpf(v) : v }));
+    setErro(null);
+  };
 
   async function enviar(e) {
     e.preventDefault();
     setErro(null);
     if (!cliente) return setErro(new ErroApi(400, { cliente: ["Escolha o cliente."] }));
-    if (novo && !novoNome.trim()) return setErro(new ErroApi(400, { nome: ["Informe o nome do cliente."] }));
+    if (ehNovo && !novo.nome.trim()) return setErro(new ErroApi(400, { nome: ["Informe o nome do cliente."] }));
     if (!dia) return setErro(new ErroApi(400, { dia_vencimento: ["Escolha o dia de vencimento."] }));
     if (!arquivo) return setErro(new ErroApi(400, { anexo_pagamento: ["Anexe o comprovante de pagamento."] }));
     setEnviando(true);
     try {
-      let idCliente = cliente;
-      if (novo) {
-        idCliente = (await api("/clientes/", { metodo: "POST", corpo: { nome: novoNome, telefone: novoTelefone, email: novoEmail } })).id;
-      }
       const corpo = new FormData();
-      corpo.append("cliente", idCliente);
+      if (ehNovo) Object.entries(novo).forEach(([k, v]) => corpo.append(k, v));
+      else corpo.append("cliente", cliente);
       corpo.append("anexo_pagamento", arquivo);
       corpo.append("dia_vencimento", dia);
-      aoSalvar(await api(`/boxes/${box.id}/`, { metodo: "PATCH", corpo }));
+      if (interessado) corpo.append("interessado", interessado.id);
+      aoSalvar(await api(`/boxes/${box.id}/alugar/`, { metodo: "POST", corpo }));
     } catch (err) {
       setErro(err);
     } finally {
@@ -200,13 +231,20 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
   }
 
   if (!clientes && !erro) return <Carregando texto="Carregando clientes..." />;
-  const campos = ["cliente", "nome", "telefone", "email", "anexo_pagamento", "dia_vencimento"];
+  const campos = ["cliente", "nome", "telefone", "email", "cpf", "anexo_pagamento", "dia_vencimento"];
 
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
       <p className="rounded-md bg-roxo-50 px-4 py-3 text-sm text-roxo-700">
         Box #{box.id} · {box.tamanho} · {formatarMoeda(box.valor)} · Sede {box.sede_nome}
       </p>
+      {interessado && (
+        <Aviso tipo="info">
+          {ehNovo
+            ? `${interessado.nome} veio da lista de espera: os dados dele já estão preenchidos. Confira e complete.`
+            : `${interessado.nome} veio da lista de espera e já tem cadastro: usamos o cadastro existente.`}
+        </Aviso>
+      )}
       {erro && !campos.some((c) => erro.campo(c)) && <Aviso>{erro.message}</Aviso>}
       <Selecao
         rotulo="Cliente"
@@ -218,41 +256,57 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
         erro={erro?.campo("cliente")}
       >
         <option value="">Selecione</option>
-        <option value="novo">+ Cadastrar novo cliente</option>
-        {clientes?.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.nome}
-          </option>
-        ))}
+        <option value="novo">+ Cliente novo</option>
+        {clientes?.length > 0 && (
+          <optgroup label="Clientes">
+            {clientes.map((c) => (
+              <option key={c.id} value={c.id}>{c.nome}</option>
+            ))}
+          </optgroup>
+        )}
+        {exClientes.length > 0 && (
+          <optgroup label="Ex-clientes (voltam a ser clientes)">
+            {exClientes.map((c) => (
+              <option key={c.id} value={c.id}>{c.nome}</option>
+            ))}
+          </optgroup>
+        )}
       </Selecao>
-      {novo && (
-        <Campo
-          rotulo="Nome do novo cliente"
-          value={novoNome}
-          onChange={(e) => setNovoNome(e.target.value)}
-          erro={erro?.campo("nome")}
-          autoFocus
-        />
+      {exEscolhido && (
+        <p className="-mt-2 text-xs text-roxo-700">
+          {exEscolhido.nome} é ex-cliente: ao confirmar, volta para a lista de clientes.
+        </p>
       )}
-      {novo && (
-        <Campo
-          rotulo="WhatsApp do novo cliente"
-          inputMode="tel"
-          placeholder="(85) 99999-9999"
-          value={novoTelefone}
-          onChange={(e) => setNovoTelefone(formatarTelefone(e.target.value))}
-          erro={erro?.campo("telefone")}
-        />
-      )}
-      {novo && (
-        <Campo
-          rotulo="E-mail do novo cliente"
-          type="email"
-          value={novoEmail}
-          onChange={(e) => setNovoEmail(e.target.value)}
-          erro={erro?.campo("email")}
-          ajuda="Para onde vai a nota fiscal."
-        />
+      {ehNovo && (
+        <div className="space-y-4 rounded-md bg-fundo p-4">
+          <Campo rotulo="Nome do cliente" value={novo.nome} onChange={mudarNovo("nome")} erro={erro?.campo("nome")} autoFocus={!interessado} />
+          <Campo
+            rotulo="WhatsApp"
+            inputMode="tel"
+            placeholder="(85) 99999-9999"
+            value={novo.telefone}
+            onChange={mudarNovo("telefone")}
+            erro={erro?.campo("telefone")}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo
+              rotulo="E-mail"
+              type="email"
+              value={novo.email}
+              onChange={mudarNovo("email")}
+              erro={erro?.campo("email")}
+              ajuda="Para onde vai a nota fiscal."
+            />
+            <Campo
+              rotulo="CPF (opcional)"
+              inputMode="numeric"
+              placeholder="000.000.000-00"
+              value={novo.cpf}
+              onChange={mudarNovo("cpf")}
+              erro={erro?.campo("cpf")}
+            />
+          </div>
+        </div>
       )}
       <Selecao
         rotulo="Dia de vencimento"
@@ -384,13 +438,11 @@ export default function Boxes() {
   const [busca, setBusca] = useState("");
   const [janela, setJanela] = useState(null); // { tipo, box }
   const [recemAlugado, setRecemAlugado] = useState(null);
-  const [excluirCliente, setExcluirCliente] = useState(false);
   const [infoCliente, setInfoCliente] = useState(null);
   const [avisoLiberado, setAvisoLiberado] = useState("");
 
   // Ao abrir "Liberar", busca se o cliente tem outros boxes e atrasos
   useEffect(() => {
-    setExcluirCliente(false);
     setInfoCliente(null);
     if (janela?.tipo === "liberar" && janela.box.cliente) {
       api(`/clientes/${janela.box.cliente}/`).then(setInfoCliente).catch(() => {});
@@ -623,16 +675,13 @@ export default function Boxes() {
       <Confirmar
         aberto={janela?.tipo === "liberar"}
         titulo={`Liberar box #${janela?.box?.id}?`}
-        textoBotao={excluirCliente ? "Liberar e excluir cliente" : "Liberar box"}
+        textoBotao="Liberar box"
         aoFechar={fechar}
         aoConfirmar={async () => {
-          const r = await api(`/boxes/${janela.box.id}/liberar/`, {
-            metodo: "POST",
-            corpo: { excluir_cliente: excluirCliente },
-          });
+          const r = await api(`/boxes/${janela.box.id}/liberar/`, { metodo: "POST" });
           setAvisoLiberado(
             r.cliente_excluido
-              ? `Box #${r.id} liberado e ${janela.box.cliente_nome} excluído da lista de clientes. O histórico continua guardado.`
+              ? `Box #${r.id} liberado. ${janela.box.cliente_nome} não tem outro box e foi para Clientes > Ex-clientes (o histórico continua guardado).`
               : `Box #${r.id} liberado.`
           );
           carregar();
@@ -647,27 +696,16 @@ export default function Boxes() {
               {janela?.box?.cliente_nome} tem outro(s) box(es) alugado(s), então continua na lista de clientes.
             </p>
           ) : (
-            <label className="flex cursor-pointer gap-3 rounded-md bg-fundo px-3 py-3">
-              <input
-                type="checkbox"
-                checked={excluirCliente}
-                onChange={(e) => setExcluirCliente(e.target.checked)}
-                className="mt-0.5 size-4 shrink-0 accent-[#965ba5]"
-              />
-              <span>
-                <strong className="text-marinho">Excluir {janela?.box?.cliente_nome} da lista de clientes</strong>
-                <span className="block text-xs text-marinho-claro/70">
-                  Ele some das listas e dos comunicados. Contratos e pagamentos ficam guardados e dá para reativar depois em
-                  Clientes &gt; Excluídos.
-                </span>
-                {excluirCliente && infoCliente.atrasadas > 0 && (
-                  <span className="mt-1 block text-xs font-medium text-red-700">
-                    Atenção: este cliente ainda tem {infoCliente.atrasadas} mensalidade(s) atrasada(s).
-                  </span>
-                )}
-              </span>
-            </label>
+            <p className="rounded-md bg-fundo px-3 py-2 text-xs">
+              Este é o único box de {janela?.box?.cliente_nome}: ele sai da lista de clientes e vai para{" "}
+              <strong>Ex-clientes</strong>. Contratos e pagamentos ficam guardados.
+            </p>
           ))}
+        {infoCliente?.atrasadas > 0 && (
+          <p className="rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            Atenção: {janela?.box?.cliente_nome} ainda tem {infoCliente.atrasadas} mensalidade(s) atrasada(s).
+          </p>
+        )}
       </Confirmar>
     </>
   );

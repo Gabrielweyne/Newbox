@@ -32,8 +32,8 @@ class NewboxApiTests(APITestCase):
 
     def test_campos_obrigatorios(self):
         self.assertEqual(self.client.post("/api/sedes/", {"nome": "X"}).status_code, 400)
-        self.assertEqual(self.client.post("/api/clientes/", {"nome": "  "}).status_code, 400)
         box = Box.objects.create(sede=self.sede, tamanho="P", valor=10)
+        self.assertIn("nome", self.client.post(f"/api/boxes/{box.id}/alugar/", {"nome": "  "}).data)
         self.assertIn("tamanho", self.client.patch(f"/api/boxes/{box.id}/", {"tamanho": " "}).data)
 
     def test_box_alugado_exige_comprovante(self):
@@ -730,7 +730,10 @@ class ListaDeEsperaTests(APITestCase):
         self.client.force_authenticate(self.ana)
 
     def anotar(self, **extra):
-        dados = {"nome": "Paula", "telefone": "(85) 99876-5432", "sede": self.coco.id, "tamanho": "3x3 m", **extra}
+        dados = {
+            "nome": "Paula", "telefone": "(85) 99876-5432", "email": " Paula@Exemplo.com ",
+            "sede": self.coco.id, "tamanho": "3x3 m", **extra,
+        }
         return self.client.post("/api/interessados/", dados)
 
     def test_anotar_e_validar_telefone(self):
@@ -789,6 +792,41 @@ class ListaDeEsperaTests(APITestCase):
         self.assertEqual(tamanhos[:3], ["P1", "P2", "P3"])
         self.assertEqual(tamanhos[-1], "3x3 m")
 
+    def test_email_obrigatorio(self):
+        r = self.anotar(email="")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("e-mail", str(r.data["email"]))
+        self.assertEqual(self.anotar().data["email"], "paula@exemplo.com")
+        # Anotação antiga sem e-mail ainda pode mudar de situação
+        velho = Interessado.objects.create(nome="Velho", telefone="85911112222")
+        r = self.client.patch(f"/api/interessados/{velho.id}/", {"situacao": "desistiu"})
+        self.assertEqual(r.status_code, 200, r.data)
+
+    def test_alugar_pela_lista_vira_cliente(self):
+        iid = self.anotar().data["id"]
+        self.client.post(f"/api/boxes/{self.box_coco.id}/liberar/")
+        arquivo = SimpleUploadedFile("pix.pdf", b"%PDF-1.4", content_type="application/pdf")
+        r = self.client.post(f"/api/boxes/{self.box_coco.id}/alugar/", {
+            "nome": "Paula", "telefone": "85998765432", "email": "paula@exemplo.com",
+            "anexo_pagamento": arquivo, "dia_vencimento": 10, "interessado": iid,
+        }, format="multipart")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertNotIn("interessado", r.data)
+        cid = r.data["cliente"]
+        self.assertEqual(Cliente.objects.get(pk=cid).email, "paula@exemplo.com")
+        i = Interessado.objects.get(pk=iid)
+        self.assertEqual((i.situacao, i.cliente_id), ("alugou", cid))
+        self.assertIsNotNone(i.contatado_em)
+        self.assertEqual(Contrato.objects.get(box=self.box_coco, fim__isnull=True).cliente_id, cid)
+        self.assertEqual(self.client.get("/api/interessados/oportunidades/").data, [])
+
+    def test_interessado_so_ao_alugar_box_livre(self):
+        iid = self.anotar().data["id"]
+        r = self.client.patch(f"/api/boxes/{self.box_coco.id}/", {"interessado": iid, "valor": "430"})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("interessado", r.data)
+        self.assertEqual(Interessado.objects.get(pk=iid).situacao, "aguardando")
+
     def test_precisa_login(self):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get("/api/interessados/").status_code, 401)
@@ -804,20 +842,46 @@ class ContatoClienteTests(APITestCase):
         Funcionario.objects.create(usuario=self.ana, nome="Ana", cpf="52998224725", sede=self.coco)
         self.client.force_authenticate(self.ana)
 
+    def alugar(self, **dados):
+        box = Box.objects.create(sede=self.coco, tamanho="P1", valor=100)
+        arquivo = SimpleUploadedFile("c.pdf", b"%PDF", content_type="application/pdf")
+        return self.client.post(f"/api/boxes/{box.id}/alugar/",
+                                {"dia_vencimento": 10, "anexo_pagamento": arquivo, **dados}, format="multipart")
+
     def test_whatsapp_obrigatorio_e_cpf_validado(self):
-        r = self.client.post("/api/clientes/", {"nome": "Sem Zap"})
+        r = self.alugar(nome="Sem Zap")
         self.assertIn("telefone", r.data)
         self.assertEqual(r.data["email"], ["Informe o e-mail do cliente."])
-        r = self.client.post("/api/clientes/", {"nome": "Zé", "telefone": "(85) 99876-5432", "cpf": "529.982.247-25",
-                                                "email": "ze@exemplo.com"})
-        self.assertEqual(r.status_code, 201, r.data)
-        self.assertEqual((r.data["telefone"], r.data["cpf"]), ("85998765432", "52998224725"))
-        r = self.client.post("/api/clientes/", {"nome": "Outro", "telefone": "85911112222", "cpf": "529.982.247-25",
-                                                "email": "o@exemplo.com"})
+        r = self.alugar(nome="Zé", telefone="(85) 99876-5432", cpf="529.982.247-25", email="ze@exemplo.com")
+        self.assertEqual(r.status_code, 200, r.data)
+        ze = Cliente.objects.get(pk=r.data["cliente"])
+        self.assertEqual((ze.telefone, ze.cpf), ("85998765432", "52998224725"))
+        r = self.alugar(nome="Outro", telefone="85911112222", cpf="529.982.247-25", email="o@exemplo.com")
         self.assertIn("cpf", r.data)
-        r = self.client.post("/api/clientes/", {"nome": "Outro", "telefone": "85911112222", "cpf": "123.456.789-00",
-                                                "email": "o@exemplo.com"})
+        r = self.alugar(nome="Outro", telefone="85911112222", cpf="123.456.789-00", email="o@exemplo.com")
         self.assertIn("cpf", r.data)
+        self.assertEqual(Cliente.objects.count(), 1)
+
+    def test_nao_cria_cliente_sem_box(self):
+        r = self.client.post("/api/clientes/", {"nome": "Zé", "telefone": "85998765432", "email": "ze@exemplo.com"})
+        self.assertEqual(r.status_code, 405)
+        # erro no aluguel (sem comprovante) não deixa cliente solto
+        box = Box.objects.create(sede=self.coco, tamanho="P1", valor=100)
+        r = self.client.post(f"/api/boxes/{box.id}/alugar/", {
+            "nome": "Zé", "telefone": "85998765432", "email": "ze@exemplo.com", "dia_vencimento": 10,
+        }, format="multipart")
+        self.assertIn("anexo_pagamento", r.data)
+        self.assertFalse(Cliente.objects.exists())
+
+    def test_nao_aluga_box_ja_alugado(self):
+        r = self.alugar(nome="Zé", telefone="85998765432", email="ze@exemplo.com")
+        box_id = r.data["id"]
+        arquivo = SimpleUploadedFile("c.pdf", b"%PDF", content_type="application/pdf")
+        r = self.client.post(f"/api/boxes/{box_id}/alugar/", {
+            "cliente": r.data["cliente"], "dia_vencimento": 10, "anexo_pagamento": arquivo,
+        }, format="multipart")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("já está alugado", r.data["detail"])
 
     def test_cliente_antigo_sem_telefone_pode_ser_editado(self):
         c = Cliente.objects.create(nome="Antigo")
@@ -1178,8 +1242,8 @@ class ExcluirClienteAoLiberarTests(APITestCase):
     def nomes(self, url="/api/clientes/"):
         return [c["nome"] for c in self.client.get(url).data["results"]]
 
-    def test_liberar_e_excluir_cliente(self):
-        r = self.client.post(f"/api/boxes/{self.b1.id}/liberar/", {"excluir_cliente": True}, format="json")
+    def test_ultimo_box_liberado_vira_ex_cliente(self):
+        r = self.client.post(f"/api/boxes/{self.b1.id}/liberar/")
         self.assertTrue(r.data["cliente_excluido"])
         self.assertEqual(self.nomes(), [])
         self.assertEqual(self.nomes("/api/clientes/?excluidos=true"), ["Carlos"])
@@ -1187,31 +1251,31 @@ class ExcluirClienteAoLiberarTests(APITestCase):
         ficha = self.client.get(f"/api/clientes/{self.cliente.id}/ficha/").data
         self.assertEqual(len(ficha["contratos"]), 1)
         self.assertFalse(ficha["cliente"]["ativo"])
-        # não recebe comunicado e não pode alugar sem reativar
+        # CPF de ex-cliente: pede para escolher na lista
         box = Box.objects.create(sede=self.coco, tamanho="P2", valor=100)
-        r = self.client.patch(f"/api/boxes/{box.id}/", {"cliente": self.cliente.id, "dia_vencimento": 10})
-        self.assertIn("Reative", str(r.data["cliente"]))
-        r = self.client.post("/api/clientes/", {"nome": "Carlos 2", "telefone": "85911112222",
-                                                "email": "x@exemplo.com", "cpf": "246.813.579-28"})
-        self.assertIn("aba Excluídos", str(r.data["cpf"]))
-        # reativar
-        r = self.client.post(f"/api/clientes/{self.cliente.id}/reativar/")
-        self.assertTrue(r.data["ativo"])
+        r = self.client.post(f"/api/boxes/{box.id}/alugar/", {
+            "nome": "Carlos 2", "telefone": "85911112222", "email": "x@exemplo.com", "cpf": "246.813.579-28",
+            "dia_vencimento": 10, "anexo_pagamento": SimpleUploadedFile("c.pdf", b"%PDF", content_type="application/pdf"),
+        }, format="multipart")
+        self.assertIn("ex-cliente", str(r.data["cpf"]))
+        # alugar de novo: volta a ser cliente
+        r = self.client.post(f"/api/boxes/{box.id}/alugar/", {
+            "cliente": self.cliente.id, "dia_vencimento": 10,
+            "anexo_pagamento": SimpleUploadedFile("c.pdf", b"%PDF", content_type="application/pdf"),
+        }, format="multipart")
+        self.assertEqual(r.status_code, 200, r.data)
         self.assertEqual(self.nomes(), ["Carlos"])
+        self.cliente.refresh_from_db()
+        self.assertIsNone(self.cliente.excluido_em)
 
-    def test_liberar_sem_excluir(self):
+    def test_continua_cliente_se_tem_outro_box(self):
+        self.alugar_box()
         r = self.client.post(f"/api/boxes/{self.b1.id}/liberar/")
         self.assertFalse(r.data["cliente_excluido"])
         self.assertEqual(self.nomes(), ["Carlos"])
 
-    def test_nao_exclui_se_tem_outro_box(self):
-        self.alugar_box()
-        r = self.client.post(f"/api/boxes/{self.b1.id}/liberar/", {"excluir_cliente": True}, format="json")
-        self.assertFalse(r.data["cliente_excluido"])
-        self.assertEqual(self.nomes(), ["Carlos"])
-
     def test_comunicado_ignora_excluidos(self):
-        self.client.post(f"/api/boxes/{self.b1.id}/liberar/", {"excluir_cliente": True}, format="json")
+        self.client.post(f"/api/boxes/{self.b1.id}/liberar/")
         admin = User.objects.create_user("chefe", is_staff=True)
         self.client.force_authenticate(admin)
         self.assertEqual(self.client.get("/api/comunicados/previa/?publico=todos").data["total"], 0)

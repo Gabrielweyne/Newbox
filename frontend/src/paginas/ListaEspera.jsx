@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router";
 import Confirmar from "../componentes/Confirmar";
 import Disponibilidade, { livresPorSede, useDisponibilidade } from "../componentes/Disponibilidade";
 import { Banner } from "../componentes/Layout";
-import { IconeEspera, IconeLixo, IconeMais, IconeWhatsapp } from "../componentes/Icones";
+import { IconeChave, IconeEspera, IconeLixo, IconeMais, IconeWhatsapp } from "../componentes/Icones";
+import { FormAlugar } from "./Boxes";
 import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Selecao, Vazio } from "../componentes/ui";
 import { api, listarTudo } from "../api";
 import { useAuth } from "../auth";
@@ -27,7 +29,7 @@ const naAba = (aba, i) => (aba === "encerrados" ? ["alugou", "desistiu"].include
 
 function FormInteressado({ sedes, tamanhos, disponibilidade, sedePadrao, aoSalvar, aoFechar }) {
   const [dados, setDados] = useState({
-    nome: "", telefone: "", sede: sedePadrao ? String(sedePadrao) : "", tamanho: "", observacao: "",
+    nome: "", telefone: "", email: "", sede: sedePadrao ? String(sedePadrao) : "", tamanho: "", observacao: "",
   });
   const [erro, setErro] = useState(null);
   const [enviando, setEnviando] = useState(false);
@@ -55,7 +57,7 @@ function FormInteressado({ sedes, tamanhos, disponibilidade, sedePadrao, aoSalva
 
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
-      {erro && !["nome", "telefone"].some((c) => erro.campo(c)) && <Aviso>{erro.message}</Aviso>}
+      {erro && !["nome", "telefone", "email"].some((c) => erro.campo(c)) && <Aviso>{erro.message}</Aviso>}
       <Campo rotulo="Nome" value={dados.nome} onChange={mudar("nome")} erro={erro?.campo("nome")} autoFocus />
       <Campo
         rotulo="WhatsApp"
@@ -64,6 +66,14 @@ function FormInteressado({ sedes, tamanhos, disponibilidade, sedePadrao, aoSalva
         value={dados.telefone}
         onChange={mudar("telefone")}
         erro={erro?.campo("telefone")}
+      />
+      <Campo
+        rotulo="E-mail"
+        type="email"
+        value={dados.email}
+        onChange={mudar("email")}
+        erro={erro?.campo("email")}
+        ajuda="Quando surgir a vaga, a pessoa vira cliente com estes dados, sem precisar digitar de novo."
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <Selecao rotulo="Unidade desejada" value={dados.sede} onChange={mudar("sede")}>
@@ -119,6 +129,10 @@ export default function ListaEspera() {
   const [erro, setErro] = useState("");
   const [novo, setNovo] = useState(false);
   const [excluindo, setExcluindo] = useState(null);
+  const [alugando, setAlugando] = useState(null); // { interessado, box }
+  const [recemAlugado, setRecemAlugado] = useState(null);
+  // Funcionário só aluga boxes da própria sede; administrador, de qualquer uma
+  const podeAlugar = (vaga) => usuario.admin || vaga.sede === usuario.sede?.id;
   const [versao, setVersao] = useState(0);
   const disponibilidade = useDisponibilidade(versao);
 
@@ -159,8 +173,8 @@ export default function ListaEspera() {
         <div className="space-y-5 lg:col-span-2">
           {comVaga > 0 && (
             <Aviso tipo="sucesso">
-              <strong>{comVaga} pessoa(s) da lista já têm vaga disponível.</strong> Chame no WhatsApp e depois marque
-              como contatado.
+              <strong>{comVaga} pessoa(s) da lista já têm vaga disponível.</strong> Chame no WhatsApp e, se ela quiser,
+              clique em "Alugar box": ela vira cliente com os dados que já estão aqui.
             </Aviso>
           )}
           <div className="flex flex-wrap gap-2" role="tablist">
@@ -179,6 +193,13 @@ export default function ListaEspera() {
             ))}
           </div>
           <Aviso>{erro}</Aviso>
+          {recemAlugado && (
+            <Aviso tipo="sucesso">
+              <strong>🎉 {recemAlugado.nome} agora é cliente</strong> e alugou o box #{recemAlugado.box}. O contrato está
+              em Boxes, pronto para imprimir.{" "}
+              <Link to={`/clientes/${recemAlugado.cliente}`} className="font-medium underline">Ver ficha do cliente</Link>
+            </Aviso>
+          )}
 
           <Cartao className="overflow-hidden">
             {!lista && !erro ? (
@@ -200,7 +221,8 @@ export default function ListaEspera() {
                             {i.nome} <Etiqueta cor={s.cor}>{s.rotulo}</Etiqueta>
                           </p>
                           <p className="mt-0.5 text-sm text-marinho-claro/80">
-                            {formatarTelefone(i.telefone)} · {i.tamanho || "Qualquer tamanho"} ·{" "}
+                            {formatarTelefone(i.telefone)} ·{" "}
+                            {i.email || <span className="text-amber-700">sem e-mail</span>} · {i.tamanho || "Qualquer tamanho"} ·{" "}
                             {i.sede_nome ? `Unidade ${i.sede_nome}` : "Qualquer unidade"}
                           </p>
                           <p className="text-xs text-marinho-claro/60">
@@ -224,6 +246,20 @@ export default function ListaEspera() {
                           ✓ Vaga agora: {i.vagas.map((v) => `Box #${v.id} (${v.tamanho}, ${v.sede_nome}, ${formatarMoeda(v.valor)})`).slice(0, 3).join(" · ")}
                           {i.vagas.length > 3 && ` e mais ${i.vagas.length - 3}`}
                         </p>
+                      )}
+
+                      {["aguardando", "contatado"].includes(i.situacao) && i.vagas.some(podeAlugar) && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {i.vagas.filter(podeAlugar).slice(0, 3).map((v) => (
+                            <button
+                              key={v.id}
+                              onClick={() => setAlugando({ interessado: i, box: v })}
+                              className="inline-flex items-center gap-1.5 rounded-md bg-roxo px-3 py-1.5 text-xs font-medium text-white hover:bg-roxo-600"
+                            >
+                              <IconeChave className="size-4" /> Alugar box #{v.id} ({v.tamanho}) e virar cliente
+                            </button>
+                          ))}
+                        </div>
                       )}
 
                       <div className="flex flex-wrap gap-1.5 text-xs">
@@ -282,6 +318,22 @@ export default function ListaEspera() {
             atualizarAvisos();
           }}
         />
+      </Modal>
+      <Modal aberto={!!alugando} titulo="Alugar box para quem estava na espera" aoFechar={() => setAlugando(null)}>
+        {alugando && (
+          <FormAlugar
+            box={alugando.box}
+            interessado={alugando.interessado}
+            aoFechar={() => setAlugando(null)}
+            aoSalvar={(b) => {
+              setRecemAlugado({ nome: b.cliente_nome, box: b.id, cliente: b.cliente });
+              setAlugando(null);
+              setAba("encerrados");
+              carregar();
+              atualizarAvisos();
+            }}
+          />
+        )}
       </Modal>
       <Confirmar
         aberto={!!excluindo}

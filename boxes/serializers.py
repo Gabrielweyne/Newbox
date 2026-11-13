@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from . import cobranca
@@ -104,7 +105,7 @@ class ClienteSerializer(serializers.ModelSerializer):
         if outro := existe.first():
             if not outro.ativo:
                 raise serializers.ValidationError(
-                    f"Este CPF é de {outro.nome}, que está na aba Excluídos. Reative o cliente em vez de cadastrar de novo."
+                    f"Este CPF é de {outro.nome}, que é ex-cliente. Escolha {outro.nome} na lista em vez de cadastrar de novo."
                 )
             raise serializers.ValidationError("Já existe cliente com este CPF.")
         return cpf
@@ -121,13 +122,17 @@ class BoxSerializer(serializers.ModelSerializer):
     em_atraso = serializers.BooleanField(read_only=True, default=False)
     # id do contrato ativo (vem anotado em BoxViewSet)
     contrato_ativo = serializers.IntegerField(read_only=True, default=None)
+    # Ao alugar para alguém da lista de espera: a pessoa sai da lista como "Alugou"
+    interessado = serializers.PrimaryKeyRelatedField(
+        queryset=Interessado.objects.all(), required=False, allow_null=True, write_only=True
+    )
 
     class Meta:
         model = Box
         fields = [
             "id", "sede", "sede_nome", "tipo", "tipo_detalhe", "tamanho", "valor",
             "cliente", "cliente_nome", "anexo_pagamento", "dia_vencimento", "alugado_em",
-            "alugado", "em_atraso", "contrato_ativo",
+            "alugado", "em_atraso", "contrato_ativo", "interessado",
         ]
         read_only_fields = ["alugado_em"]
         # Funcionário pode omitir a sede: usa a dele automaticamente.
@@ -161,10 +166,6 @@ class BoxSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"cliente": "Para encerrar o aluguel use a opção Liberar."}
             )
-        if cliente and not cliente.ativo and "cliente" in attrs:
-            raise serializers.ValidationError(
-                {"cliente": "Este cliente foi excluído. Reative-o em Clientes > Excluídos antes de alugar."}
-            )
         if cliente and not dia:
             raise serializers.ValidationError(
                 {"dia_vencimento": "Escolha o dia de vencimento da mensalidade."}
@@ -176,6 +177,10 @@ class BoxSerializer(serializers.ModelSerializer):
         if cliente and not anexo:
             raise serializers.ValidationError(
                 {"anexo_pagamento": "Obrigatório quando o box está alugado."}
+            )
+        if attrs.get("interessado") and not (cliente and "cliente" in attrs and not getattr(atual, "cliente_id", None)):
+            raise serializers.ValidationError(
+                {"interessado": "Só dá para indicar alguém da lista de espera ao alugar um box livre."}
             )
         if anexo and not cliente:
             raise serializers.ValidationError(
@@ -205,21 +210,36 @@ class BoxSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         return request.user if request and request.user.is_authenticated else None
 
+    def _tirar_da_espera(self, interessado, box):
+        if not interessado:
+            return
+        interessado.situacao = Interessado.ALUGOU
+        interessado.cliente = box.cliente
+        interessado.contatado_em = interessado.contatado_em or timezone.now()
+        interessado.save(update_fields=["situacao", "cliente", "contatado_em"])
+
     def create(self, dados):
+        interessado = dados.pop("interessado", None)
         if dados.get("cliente"):
             dados["alugado_em"] = cobranca.hoje()
         box = super().create(dados)
         if box.alugado:
             cobranca.iniciar_aluguel(box, self._usuario())
+            self._tirar_da_espera(interessado, box)
         return box
 
     def update(self, box, dados):
+        interessado = dados.pop("interessado", None)
         estava_livre = not box.alugado
         if estava_livre and dados.get("cliente"):
             dados["alugado_em"] = cobranca.hoje()
         box = super().update(box, dados)
         if estava_livre and box.alugado:
+            if not box.cliente.ativo:  # ex-cliente alugando de novo volta a ser cliente
+                box.cliente.ativo, box.cliente.excluido_em = True, None
+                box.cliente.save(update_fields=["ativo", "excluido_em"])
             cobranca.iniciar_aluguel(box, self._usuario())
+            self._tirar_da_espera(interessado, box)
         elif box.alugado and ({"valor", "dia_vencimento"} & dados.keys()):
             # Mensalidades futuras ainda não pagas acompanham o novo valor/dia
             for m in box.mensalidades.filter(pago_em__isnull=True, vencimento__gte=cobranca.hoje()):
@@ -333,14 +353,32 @@ class InteressadoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Interessado
         fields = [
-            "id", "nome", "telefone", "sede", "sede_nome", "tamanho", "observacao",
-            "situacao", "criado_em", "contatado_em", "criado_por_nome", "vagas",
+            "id", "nome", "telefone", "email", "sede", "sede_nome", "tamanho", "observacao",
+            "situacao", "criado_em", "contatado_em", "criado_por_nome", "vagas", "cliente",
         ]
-        read_only_fields = ["criado_em", "contatado_em"]
-        extra_kwargs = {"telefone": {"max_length": 25}}  # aceita "(85) 99999-9999"
+        read_only_fields = ["criado_em", "contatado_em", "cliente"]
+        extra_kwargs = {
+            "telefone": {"max_length": 25},  # aceita "(85) 99999-9999"
+            "email": {
+                "required": True, "allow_blank": False,
+                "error_messages": {
+                    "blank": "Informe o e-mail. Ele vira o e-mail do cliente quando alugar.",
+                    "required": "Informe o e-mail. Ele vira o e-mail do cliente quando alugar.",
+                },
+            },
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Anotações antigas podem não ter e-mail: mudar só a situação não exige
+        if self.instance is not None and self.partial:
+            self.fields["email"].required = False
 
     def validate_telefone(self, valor):
         return limpar_telefone(valor)
+
+    def validate_email(self, valor):
+        return (valor or "").strip().lower()
 
     def validate_tamanho(self, valor):
         return (valor or "").strip()

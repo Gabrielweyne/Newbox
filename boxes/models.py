@@ -314,6 +314,8 @@ class Interessado(models.Model):
 
     nome = models.CharField(max_length=150)
     telefone = models.CharField("WhatsApp", max_length=11, help_text="DDD + número, só dígitos.")
+    # Obrigatório para novos (validado na API); anotações antigas podem estar sem
+    email = models.EmailField("e-mail", blank=True)
     sede = models.ForeignKey(
         Sede, on_delete=models.SET_NULL, null=True, blank=True, related_name="interessados",
         help_text="Vazio = qualquer unidade.",
@@ -326,6 +328,10 @@ class Interessado(models.Model):
     )
     criado_em = models.DateTimeField(auto_now_add=True)
     contatado_em = models.DateTimeField(null=True, blank=True)
+    # Cliente criado (ou reaproveitado) quando a pessoa alugou a partir da lista
+    cliente = models.ForeignKey(
+        Cliente, on_delete=models.SET_NULL, null=True, blank=True, related_name="vindo_da_espera"
+    )
 
     class Meta:
         ordering = ["criado_em"]

@@ -101,9 +101,9 @@ class MensalidadeAdmin(admin.ModelAdmin):
 
 @admin.register(Interessado)
 class InteressadoAdmin(admin.ModelAdmin):
-    list_display = ["nome", "telefone", "sede", "tamanho", "situacao", "criado_em"]
+    list_display = ["nome", "telefone", "email", "sede", "tamanho", "situacao", "criado_em"]
     list_filter = ["situacao", "sede"]
-    search_fields = ["nome", "telefone"]
+    search_fields = ["nome", "telefone", "email"]
 
 
 @admin.register(TipoBox)

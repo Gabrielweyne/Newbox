@@ -41,7 +41,7 @@ funcionários** em `/painel` (login em `/login`). Em desenvolvimento, o site rep
 na porta 8000 (veja `frontend/vite.config.js`).
 
 Telas: login, cadastro, esqueci/redefinir senha, painel da sede (com vencimentos do dia e
-atrasos), boxes (cadastrar, alugar com comprovante e dia de vencimento, liberar, excluir),
+atrasos), boxes (alugar com comprovante e dia de vencimento, liberar),
 mensalidades (registrar pagamentos mês a mês), clientes e, para o administrador, aprovação de
 funcionários. O sininho no topo mostra quem pagou e quem não pagou nos dias de vencimento.
 
@@ -158,15 +158,20 @@ Em `/`: conteúdo dos catálogos (diferenciais, soluções para empresas, facili
 - Cliente novo precisa de **WhatsApp** e **e-mail**; CPF é opcional. Clientes antigos sem
   esses dados aparecem com o aviso "Sem WhatsApp" / "Sem e-mail" para completar o cadastro.
 
-## Excluir cliente ao liberar o box
+## Só é cliente quem tem box alugado
 
-- Na janela **Liberar box** há a opção **"Excluir o cliente da lista de clientes"** (só aparece se
-  ele não tiver outro box; avisa se ainda houver mensalidade atrasada).
-- O cliente **não é apagado do banco**: fica arquivado, some das listas, da escolha ao alugar e dos
-  comunicados, mas contratos, mensalidades e PDFs continuam guardados. Ele aparece em
-  **Clientes > Excluídos**, com o botão **Reativar**.
-- API: `POST /api/boxes/<id>/liberar/` com `{"excluir_cliente": true}`; `GET /api/clientes/?excluidos=true`;
-  `POST /api/clientes/<id>/reativar/`.
+- **Não existe cliente sem box.** Não há botão "Novo cliente": o cliente novo é cadastrado na
+  janela **Alugar box** (nome, WhatsApp, e-mail e CPF opcional), junto com o aluguel. Se o
+  aluguel der erro, o cadastro não fica salvo.
+- Ao **liberar o último box** do cliente, ele vira **ex-cliente** automaticamente: sai da lista,
+  da escolha ao alugar e dos comunicados, mas contratos, mensalidades e PDFs continuam
+  guardados. Ele aparece em **Clientes > Ex-clientes**.
+- Se o ex-cliente voltar, é só escolhê-lo (grupo "Ex-clientes") ao alugar um box: ele volta a
+  ser cliente, com o histórico antigo junto.
+- Na atualização, clientes que estavam sem box viraram ex-clientes.
+- API: `POST /api/boxes/<id>/alugar/` (multipart) com `cliente` (id) **ou** `nome`, `telefone`,
+  `email`, `cpf`; mais `dia_vencimento`, `anexo_pagamento` e, opcional, `interessado`.
+  `POST /api/clientes/` responde 405. `GET /api/clientes/?excluidos=true` lista os ex-clientes.
 
 ## Nota fiscal por e-mail
 
@@ -211,8 +216,11 @@ Em `/`: conteúdo dos catálogos (diferenciais, soluções para empresas, facili
 ## Lista de espera e vagas nas duas sedes
 
 - Quando um cliente chamar e não houver box livre, o funcionário anota em **Lista de espera**
-  (nome, WhatsApp, unidade ou "qualquer uma", tamanho ou "qualquer um"). A lista é
+  (nome, WhatsApp, e-mail, unidade ou "qualquer uma", tamanho ou "qualquer um"). A lista é
   compartilhada entre as sedes.
+- Quando surge vaga, o botão **"Alugar box #N e virar cliente"** abre o aluguel com os dados da
+  pessoa já preenchidos (se ela já foi cliente, usa o cadastro antigo). Ao confirmar, ela vira
+  cliente e sai da lista como "Alugou".
 - Ao **liberar** ou **cadastrar** um box que sirva para alguém da lista, o sininho e o painel
   avisam os funcionários da sede do box, com o botão **Chamar no WhatsApp** (mensagem pronta).
   Marcar "contatado", "alugou" ou "desistiu" tira o aviso.
@@ -266,12 +274,12 @@ Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 | Rota              | Descrição                                                                 |
 |-------------------|---------------------------------------------------------------------------|
 | `/api/sedes/`     | CRUD de sedes. Inclui `numero_de_box`, `alugados`, `nao_alugados` (calculados) |
-| `/api/clientes/`  | CRUD de clientes. Busca por nome, WhatsApp ou CPF: `?busca=`. `GET .../<id>/ficha/` (boxes e mensalidades do cliente) |
-| `/api/boxes/`     | Consultar e editar boxes (criar e excluir não são permitidos). Filtros: `?sede=`, `?cliente=`, `?alugado=true\|false`. `POST /api/boxes/<id>/liberar/` encerra o aluguel |
+| `/api/clientes/`  | Consultar e editar clientes (cadastro só ao alugar). `?excluidos=true` = ex-clientes. Busca por nome, WhatsApp ou CPF: `?busca=`. `GET .../<id>/ficha/` (boxes e mensalidades do cliente) |
+| `/api/boxes/`     | Consultar e editar boxes (criar e excluir não são permitidos). Filtros: `?sede=`, `?cliente=`, `?alugado=true\|false`. `POST /api/boxes/<id>/alugar/` aluga (e cadastra cliente novo), `POST /api/boxes/<id>/liberar/` encerra o aluguel |
 | `/api/funcionarios/` | Consulta de funcionários. Filtros: `?sede=`, `?aprovado=true\|false`. Admin: `POST .../<id>/aprovar/` e `.../<id>/bloquear/` |
 | `/api/funcionarios/sedes/` | Aberto: lista as sedes para o formulário de cadastro |
 | `/api/mensalidades/` | Mensalidades. Filtros: `?competencia=AAAA-MM`, `?situacao=paga\|pendente\|atrasada\|vence_hoje\|a_vencer`, `?box=`, `?sede=`. `GET .../avisos/` (vencem hoje + atrasadas), `POST .../<id>/pagar/` (comprovante, pago_em), `POST .../<id>/desfazer/` |
-| `/api/interessados/` | Lista de espera (CRUD). `?situacao=`. `GET .../oportunidades/` (quem já tem vaga na sua sede), `GET .../tamanhos/` |
+| `/api/interessados/` | Lista de espera (CRUD; e-mail obrigatório). `?situacao=`. `GET .../oportunidades/` (quem já tem vaga na sua sede), `GET .../tamanhos/` |
 | `/api/disponibilidade/` | Boxes livres por sede e tamanho, com valor mínimo (sem dados de clientes) |
 | `/api/contratos/` | Contratos (somente leitura). `?cliente=`, `?box=`, `?ativo=true\|false`. `GET .../<id>/pdf/` baixa o PDF |
 | `/api/tipos/`     | Catálogo de tamanhos. `?sede=`. Leitura para todos; criar/editar/excluir só admin |

@@ -142,7 +142,11 @@ def encerrar_aluguel(box, usuario=None):
     Libera o box e encerra o contrato (fica no histórico). Mensalidades ainda
     não vencidas e não pagas são apagadas; as atrasadas continuam registradas
     (o cliente ainda deve).
+
+    Só é cliente quem tem box alugado: se era o último box do cliente, ele vira
+    ex-cliente (sai da lista, com todo o histórico guardado). Devolve True nesse caso.
     """
+    cliente = box.cliente
     box.contratos.filter(fim__isnull=True).update(fim=max(hoje(), box.alugado_em or hoje()), encerrado_por=usuario)
     box.mensalidades.filter(pago_em__isnull=True, vencimento__gte=hoje()).delete()
     box.cliente = None
@@ -150,3 +154,11 @@ def encerrar_aluguel(box, usuario=None):
     box.dia_vencimento = None
     box.alugado_em = None
     box.save(update_fields=["cliente", "anexo_pagamento", "dia_vencimento", "alugado_em"])
+    if cliente and cliente.ativo and not cliente.boxes.exists():
+        from django.utils import timezone
+
+        cliente.ativo = False
+        cliente.excluido_em = timezone.now()
+        cliente.save(update_fields=["ativo", "excluido_em"])
+        return True
+    return False

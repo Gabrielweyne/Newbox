@@ -1,5 +1,6 @@
 import logging
 
+from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, ProtectedError, Q, Subquery
 from django.http import HttpResponse
 from django.utils import timezone
@@ -79,7 +80,12 @@ class SedeViewSet(FiltraPorSedeMixin, ProtegidoContraExclusaoMixin, viewsets.Mod
 
 
 class ClienteViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
-    """Clientes são compartilhados entre as sedes (um cliente pode alugar nas duas)."""
+    """
+    Clientes são compartilhados entre as sedes (um cliente pode alugar nas duas).
+    Só é cliente quem tem box alugado: o cadastro acontece ao alugar
+    (POST /api/boxes/<id>/alugar/) e quem libera o último box vira ex-cliente
+    (?excluidos=true). Ao alugar de novo, volta a ser cliente.
+    """
 
     serializer_class = ClienteSerializer
 
@@ -101,17 +107,16 @@ class ClienteViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
                 cond |= Q(telefone__contains=digitos) | Q(cpf__contains=digitos)
             qs = qs.filter(cond)
         if self.action == "list":
-            # Lista mostra só os ativos; ?excluidos=true mostra os excluídos (arquivados)
+            # Lista mostra só os clientes; ?excluidos=true mostra os ex-clientes
             qs = qs.filter(ativo=self.request.query_params.get("excluidos") != "true")
         return qs.order_by("nome")
 
-    @action(detail=True, methods=["post"])
-    def reativar(self, request, pk=None):
-        cliente = self.get_object()
-        cliente.ativo = True
-        cliente.excluido_em = None
-        cliente.save(update_fields=["ativo", "excluido_em"])
-        return Response(self.get_serializer(self.get_queryset().get(pk=cliente.pk)).data)
+    def create(self, request, *args, **kwargs):
+        # Só é cliente quem aluga: clientes novos nascem em POST /api/boxes/<id>/alugar/
+        return Response(
+            {"detail": "Clientes novos são cadastrados ao alugar um box."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
 
     @action(detail=True, methods=["get"])
     def ficha(self, request, pk=None):
@@ -187,21 +192,41 @@ class BoxViewSet(FiltraPorSedeMixin, viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"])
-    def liberar(self, request, pk=None):
+    def alugar(self, request, pk=None):
         """
-        Encerra o aluguel. Com {"excluir_cliente": true}, o cliente também sai da lista
-        de clientes (fica arquivado com todo o histórico), se não tiver outro box.
+        Aluga um box livre. Só aqui nascem clientes novos (não existe cliente sem box).
+        Cliente: {"cliente": id} (ex-cliente volta a ser cliente) ou nome, telefone,
+        email e cpf (opcional) para cadastrar um novo. Mais dia_vencimento,
+        anexo_pagamento e, opcional, interessado (quem estava na lista de espera).
         """
         box = self.get_object()
-        cliente = box.cliente
-        excluir = request.data.get("excluir_cliente") in (True, "true", "1", 1)
-        cobranca.encerrar_aluguel(box, request.user)
-        cliente_excluido = False
-        if excluir and cliente and not cliente.boxes.exists():
-            cliente.ativo = False
-            cliente.excluido_em = timezone.now()
-            cliente.save(update_fields=["ativo", "excluido_em"])
-            cliente_excluido = True
+        if box.alugado:
+            return Response({"detail": "Este box já está alugado."}, status=status.HTTP_400_BAD_REQUEST)
+        d = request.data
+        dados = {k: d.get(k) for k in ("anexo_pagamento", "dia_vencimento", "interessado") if d.get(k) not in (None, "")}
+        with transaction.atomic():
+            if d.get("cliente") not in (None, "", "novo"):
+                dados["cliente"] = d.get("cliente")
+            else:
+                novo = ClienteSerializer(
+                    data={k: d.get(k, "") for k in ("nome", "telefone", "email", "cpf")},
+                    context=self.get_serializer_context(),
+                )
+                novo.is_valid(raise_exception=True)
+                dados["cliente"] = novo.save().pk
+            serializer = self.get_serializer(box, data=dados, partial=True)
+            serializer.is_valid(raise_exception=True)  # erro aqui desfaz o cadastro do cliente
+            serializer.save()
+        return Response(self.get_serializer(self.get_queryset().get(pk=box.pk)).data)
+
+    @action(detail=True, methods=["post"])
+    def liberar(self, request, pk=None):
+        """
+        Encerra o aluguel. Se era o último box do cliente, ele vira ex-cliente
+        (sai da lista de clientes, com todo o histórico guardado).
+        """
+        box = self.get_object()
+        cliente_excluido = cobranca.encerrar_aluguel(box, request.user)
         dados = self.get_serializer(self.get_queryset().get(pk=box.pk)).data
         return Response({**dados, "cliente_excluido": cliente_excluido})
 
