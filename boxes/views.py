@@ -106,6 +106,9 @@ class ClienteViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
             if len(digitos) >= 3:
                 cond |= Q(telefone__contains=digitos) | Q(cpf__contains=digitos)
             qs = qs.filter(cond)
+        if (sede_id := self.request.query_params.get("sede", "")).isdigit():
+            # Clientes com box na sede; ex-clientes: quem já teve contrato nela
+            qs = qs.filter(Q(boxes__sede_id=sede_id) | Q(ativo=False, contratos__box__sede_id=sede_id)).distinct()
         if (dia := self.request.query_params.get("dia", "")).isdigit():
             qs = qs.filter(boxes__dia_vencimento=int(dia)).distinct()
         if self.action == "list":

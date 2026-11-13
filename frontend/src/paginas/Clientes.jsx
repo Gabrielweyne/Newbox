@@ -4,6 +4,7 @@ import { Banner } from "../componentes/Layout";
 import { IconeBusca, IconeLapis, IconePessoas, IconeWhatsapp } from "../componentes/Icones";
 import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Vazio } from "../componentes/ui";
 import { api, listarTudo } from "../api";
+import { useAuth } from "../auth";
 import { DIAS_VENCIMENTO, formatarDocumento } from "../formato";
 import { formatarTelefone, linkWhatsapp } from "../whatsapp";
 
@@ -86,13 +87,22 @@ export default function Clientes() {
   const [janela, setJanela] = useState(null);
   const [aba, setAba] = useState("ativos");
   const [dia, setDia] = useState(null); // filtro por dia de vencimento
+  const { usuario } = useAuth();
+  const [sedes, setSedes] = useState([]);
+  const [sede, setSede] = useState(""); // filtro do administrador
+  useEffect(() => {
+    if (usuario.admin) listarTudo("/sedes/").then(setSedes).catch(() => {});
+  }, [usuario.admin]);
 
   const carregar = useCallback(() => {
     setClientes(null);
-    listarTudo(`/clientes/${aba === "excluidos" ? "?excluidos=true" : ""}`)
+    const p = new URLSearchParams();
+    if (aba === "excluidos") p.set("excluidos", "true");
+    if (sede) p.set("sede", sede);
+    listarTudo(`/clientes/?${p}`)
       .then(setClientes)
       .catch((e) => setErro(e.message));
-  }, [aba]);
+  }, [aba, sede]);
   useEffect(carregar, [carregar]);
 
   const visiveis = useMemo(() => {
@@ -160,7 +170,21 @@ export default function Clientes() {
             ))}
           </div>
         )}
-        <label className="relative mb-5 block sm:w-80">
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row">
+        {usuario.admin && (
+          <select
+            aria-label="Filtrar por sede"
+            value={sede}
+            onChange={(e) => setSede(e.target.value)}
+            className="rounded-md border border-roxo-200 bg-white px-3 py-2 text-sm focus:border-roxo focus:ring-2 focus:ring-roxo-100 focus:outline-none"
+          >
+            <option value="">Todas as sedes</option>
+            {sedes.map((s) => (
+              <option key={s.id} value={s.id}>Sede {s.nome}</option>
+            ))}
+          </select>
+        )}
+        <label className="relative block sm:w-80">
           <span className="sr-only">Buscar cliente</span>
           <IconeBusca className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-marinho-claro/50" />
           <input
@@ -171,6 +195,7 @@ export default function Clientes() {
             className="w-full rounded-md border border-roxo-200 bg-white py-2 pr-3 pl-9 text-sm focus:border-roxo focus:ring-2 focus:ring-roxo-100 focus:outline-none"
           />
         </label>
+        </div>
 
         <Aviso>{erro}</Aviso>
         <Cartao className="overflow-hidden">

@@ -1387,3 +1387,15 @@ class FiltroDiaVencimentoTests(APITestCase):
         self.assertEqual({c["nome"]: c["dias_vencimento"] for c in r.data["results"]}, {"A": [5, 20], "B": [10]})
         r = self.client.get("/api/clientes/?dia=5")
         self.assertEqual([c["nome"] for c in r.data["results"]], ["A"])
+
+    def test_admin_filtra_por_sede(self):
+        coco, camb = Sede.objects.get(nome="Cocó"), Sede.objects.get(nome="Cambeba")
+        self.client.force_authenticate(User.objects.create_user("chefe", is_staff=True))
+        a = Cliente.objects.create(nome="A", telefone="85999990000")
+        b = Cliente.objects.create(nome="B", telefone="85999990001")
+        for cli, sede in [(a, coco), (b, camb), (b, coco)]:
+            Box.objects.create(sede=sede, tamanho="P1", valor=1, cliente=cli, anexo_pagamento="c/x.pdf",
+                               dia_vencimento=5, alugado_em="2026-11-01")
+        nomes = lambda url: [c["nome"] for c in self.client.get(url).data["results"]]  # noqa: E731
+        self.assertEqual(nomes(f"/api/clientes/?sede={coco.id}"), ["A", "B"])
+        self.assertEqual(nomes(f"/api/clientes/?sede={camb.id}"), ["B"])
