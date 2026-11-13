@@ -10,7 +10,7 @@ import { Aviso, Carregando, Cartao, Etiqueta, Vazio } from "../componentes/ui";
 import { api, listarTudo } from "../api";
 import { useAuth } from "../auth";
 import { useAvisos } from "../avisos";
-import { formatarData, formatarMoeda, nomeDoMes, SITUACOES, somarMes } from "../formato";
+import { formatarData, formatarMoeda, nomeDoMes, SITUACOES, somarMes, nomeBox } from "../formato";
 
 const mesAtual = () => {
   const d = new Date();
@@ -191,7 +191,7 @@ export default function Mensalidades() {
                       <p className="font-medium text-marinho">
                         <Link to={`/clientes/${m.cliente}`} className="hover:text-roxo">{m.cliente_nome}</Link>{" "}
                         <span className="font-normal text-marinho-claro/60">
-                          · Box #{m.box} ({m.box_tamanho}){usuario.admin && ` · ${m.sede_nome}`}
+                          · {nomeBox(m.box_numero, m.box)} ({m.box_tamanho}){usuario.admin && ` · ${m.sede_nome}`}
                         </span>
                       </p>
                       <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-marinho-claro/80">

@@ -9,7 +9,7 @@ import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Selecao, Vazi
 import { api, listarTudo } from "../api";
 import { useAuth } from "../auth";
 import { useAvisos } from "../avisos";
-import { formatarData, formatarMoeda } from "../formato";
+import { formatarData, formatarMoeda, nomeBox } from "../formato";
 import { formatarTelefone, linkWhatsapp, mensagemVaga } from "../whatsapp";
 
 const ABAS = [
@@ -195,7 +195,7 @@ export default function ListaEspera() {
           <Aviso>{erro}</Aviso>
           {recemAlugado && (
             <Aviso tipo="sucesso">
-              <strong>🎉 {recemAlugado.nome} agora é cliente</strong> e alugou o box #{recemAlugado.box}. O contrato está
+              <strong>🎉 {recemAlugado.nome} agora é cliente</strong> e alugou o {nomeBox(recemAlugado.numero, recemAlugado.box).toLowerCase()}. O contrato está
               em Boxes, pronto para imprimir.{" "}
               <Link to={`/clientes/${recemAlugado.cliente}`} className="font-medium underline">Ver ficha do cliente</Link>
             </Aviso>
@@ -243,7 +243,7 @@ export default function ListaEspera() {
 
                       {vaga && ["aguardando", "contatado"].includes(i.situacao) && (
                         <p className="text-sm text-emerald-800">
-                          ✓ Vaga agora: {i.vagas.map((v) => `Box #${v.id} (${v.tamanho}, ${v.sede_nome}, ${formatarMoeda(v.valor)})`).slice(0, 3).join(" · ")}
+                          ✓ Vaga agora: {i.vagas.map((v) => `${nomeBox(v.numero, v.id)} (${v.tamanho}, ${v.sede_nome}, ${formatarMoeda(v.valor)})`).slice(0, 3).join(" · ")}
                           {i.vagas.length > 3 && ` e mais ${i.vagas.length - 3}`}
                         </p>
                       )}
@@ -256,7 +256,7 @@ export default function ListaEspera() {
                               onClick={() => setAlugando({ interessado: i, box: v })}
                               className="inline-flex items-center gap-1.5 rounded-md bg-roxo px-3 py-1.5 text-xs font-medium text-white hover:bg-roxo-600"
                             >
-                              <IconeChave className="size-4" /> Alugar box #{v.id} ({v.tamanho}) e virar cliente
+                              <IconeChave className="size-4" /> Alugar {nomeBox(v.numero, v.id).toLowerCase()} ({v.tamanho}) e virar cliente
                             </button>
                           ))}
                         </div>
@@ -326,7 +326,7 @@ export default function ListaEspera() {
             interessado={alugando.interessado}
             aoFechar={() => setAlugando(null)}
             aoSalvar={(b) => {
-              setRecemAlugado({ nome: b.cliente_nome, box: b.id, cliente: b.cliente });
+              setRecemAlugado({ nome: b.cliente_nome, box: b.id, numero: b.numero, cliente: b.cliente });
               setAlugando(null);
               setAba("encerrados");
               carregar();

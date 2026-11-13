@@ -4,7 +4,7 @@ from django.db import models
 from django.db.models import Q
 
 from .cobranca import DIAS_VENCIMENTO
-from .validators import validar_cpf
+from .validators import validar_cpf, validar_documento
 
 
 class Sede(models.Model):
@@ -85,8 +85,10 @@ class Cliente(models.Model):
 
     nome = models.CharField(max_length=150)
     telefone = models.CharField("WhatsApp", max_length=11, blank=True, help_text="DDD + número, só dígitos.")
-    cpf = models.CharField("CPF", max_length=11, blank=True, validators=[validar_cpf])
+    # CPF (pessoa) ou CNPJ (empresa), só dígitos
+    cpf = models.CharField("CPF/CNPJ", max_length=14, blank=True, validators=[validar_documento])
     email = models.EmailField("e-mail", blank=True)
+    endereco = models.CharField("endereço", max_length=300, blank=True, help_text="Com CEP.")
     # "Excluído" pelo site = arquivado: some das listas, mas o histórico fica guardado
     ativo = models.BooleanField(default=True)
     excluido_em = models.DateTimeField("excluído em", null=True, blank=True)
@@ -103,7 +105,7 @@ class Cliente(models.Model):
                 name="cliente_telefone_valido",
             ),
             models.CheckConstraint(
-                condition=Q(cpf="") | Q(cpf__regex=r"^[0-9]{11}$"), name="cliente_cpf_11_digitos"
+                condition=Q(cpf="") | Q(cpf__regex=r"^([0-9]{11}|[0-9]{14})$"), name="cliente_documento_valido"
             ),
             models.UniqueConstraint(
                 fields=["cpf"], condition=~Q(cpf=""), name="cliente_cpf_unico"
@@ -126,6 +128,9 @@ class Box(models.Model):
     """
 
     sede = models.ForeignKey(Sede, on_delete=models.PROTECT, related_name="boxes")
+    numero = models.CharField(
+        "número", max_length=20, blank=True, help_text="Número pintado no box (ex.: 1.1, 34). Único na sede."
+    )
     tipo = models.ForeignKey(
         "TipoBox", on_delete=models.PROTECT, null=True, blank=True, related_name="boxes",
         help_text="Tamanho do catálogo. Ao escolher, o código vira o tamanho do box.",
@@ -154,6 +159,12 @@ class Box(models.Model):
         "o dia 30 passa para o último dia do mês.",
     )
     alugado_em = models.DateField("alugado em", null=True, blank=True)
+    # Aluguéis trazidos da planilha antiga: as mensalidades só são geradas a partir
+    # deste mês (antes disso, o controle era na planilha).
+    cobranca_desde = models.DateField("cobrança pelo sistema desde", null=True, blank=True)
+    observacao = models.TextField(
+        "observação", blank=True, help_text="Anotações (ex.: vindas da planilha antiga, o que falta conferir)."
+    )
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -164,6 +175,9 @@ class Box(models.Model):
                 condition=~Q(tamanho__regex=r"^\s*$"), name="box_tamanho_preenchido"
             ),
             models.CheckConstraint(condition=Q(valor__gte=0), name="box_valor_positivo"),
+            models.UniqueConstraint(
+                fields=["sede", "numero"], condition=~Q(numero=""), name="box_numero_unico_por_sede"
+            ),
             models.CheckConstraint(
                 condition=(
                     Q(cliente__isnull=True)
@@ -193,8 +207,12 @@ class Box(models.Model):
     def alugado(self):
         return self.cliente_id is not None
 
+    @property
+    def rotulo(self):
+        return f"Box {self.numero}" if self.numero else f"Box #{self.pk}"
+
     def __str__(self):
-        return f"Box {self.pk} - {self.sede} ({self.tamanho})"
+        return f"{self.rotulo} - {self.sede} ({self.tamanho})"
 
 
 class Funcionario(models.Model):

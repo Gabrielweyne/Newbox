@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useAvisos } from "../avisos";
-import { formatarData, formatarMoeda } from "../formato";
+import { formatarData, formatarMoeda, nomeBox } from "../formato";
 import { IconeSino } from "./Icones";
 
 function Item({ m, tipo }) {
@@ -21,7 +21,7 @@ function Item({ m, tipo }) {
       <div className="min-w-0 text-sm">
         <p className="truncate font-medium text-marinho">{m.cliente_nome}</p>
         <p className="text-xs text-marinho-claro/70">
-          Box #{m.box} · {formatarMoeda(m.valor)} · {texto[tipo]}
+          {nomeBox(m.box_numero, m.box)} · {formatarMoeda(m.valor)} · {texto[tipo]}
         </p>
       </div>
     </li>

@@ -209,7 +209,7 @@ class BoxViewSet(FiltraPorSedeMixin, viewsets.ModelViewSet):
                 dados["cliente"] = d.get("cliente")
             else:
                 novo = ClienteSerializer(
-                    data={k: d.get(k, "") for k in ("nome", "telefone", "email", "cpf")},
+                    data={k: d.get(k, "") for k in ("nome", "telefone", "email", "cpf", "endereco")},
                     context=self.get_serializer_context(),
                 )
                 novo.is_valid(raise_exception=True)

@@ -11,6 +11,22 @@ export function formatarCpf(valor) {
     .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
 
+/** CPF (até 11 dígitos) ou CNPJ (12 a 14 dígitos), formatado enquanto digita. */
+export function formatarDocumento(valor) {
+  const d = String(valor || "").replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 11) return formatarCpf(d);
+  return d
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+}
+
+/** "Box 1.1" (número pintado no box) ou "Box #12" para boxes ainda sem número. */
+export function nomeBox(numero, id) {
+  return numero ? `Box ${numero}` : `Box #${id}`;
+}
+
 export function primeiroNome(nome) {
   return String(nome || "").trim().split(/\s+/)[0];
 }

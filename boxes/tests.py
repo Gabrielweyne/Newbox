@@ -1279,3 +1279,94 @@ class ExcluirClienteAoLiberarTests(APITestCase):
         admin = User.objects.create_user("chefe", is_staff=True)
         self.client.force_authenticate(admin)
         self.assertEqual(self.client.get("/api/comunicados/previa/?publico=todos").data["total"], 0)
+
+
+import tempfile  # noqa: E402
+from decimal import Decimal  # noqa: E402
+from io import StringIO  # noqa: E402
+
+from django.core.management import call_command  # noqa: E402
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
+class ImportarPlanilhaTests(APITestCase):
+    CABECALHO = "sede;box;tamanho;valor;cliente;cpf_cnpj;whatsapp;email;endereco;inicio;vencimento;observacao\n"
+
+    def importar(self, linhas, *extra):
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8-sig") as f:
+            f.write(self.CABECALHO + "\n".join(linhas))
+        saida = StringIO()
+        call_command("importar_planilha", f.name, *extra, stdout=saida)
+        return saida.getvalue()
+
+    def test_simulacao_nao_grava(self):
+        saida = self.importar(["Cocó;1.1;;1250,00;Fulano;529.982.247-25;(85) 9 9999-0000;f@x.com;Rua A, CEP 60000-000;27/06/2025;25;"])
+        self.assertIn("SIMULAÇÃO", saida)
+        self.assertFalse(Box.objects.exists())
+
+    @mock.patch("boxes.cobranca.hoje", return_value=date(2026, 11, 13))
+    def test_importa_aluguel_cnpj_e_estimativas(self, _):
+        saida = self.importar([
+            "Cocó;1.1;;1250,00;Fulano de Tal;529.982.247-25;(85) 9 9999-0000;F@X.com, outro@x.com;Rua A, 1, CEP 60000-000;27/06/2025;25;",
+            "Cocó;2;;765,00;ASSEF AUTOS LTDA;58.457.820/0001-97;(85) 9 9193-1515;a@x.com;Av. B;24/01/2026;;Valor promocional",
+            "Cocó;35;;;;;;;;;;",
+            "Cambeba;3;;400,00;Fulano de Tal;529.982.247-25;+351 921;;;01/02/2020;5;",
+        ], "--confirmar")
+        self.assertIn("Dados gravados", saida)
+        b = Box.objects.get(sede__nome="Cocó", numero="1.1")
+        self.assertEqual((b.tamanho, b.valor, b.dia_vencimento, str(b.alugado_em)), ("G3", Decimal("1250.00"), 25, "2025-06-27"))
+        self.assertEqual(b.cobranca_desde, date(2026, 11, 1))  # dia 25/11 ainda vai vencer
+        fulano = b.cliente
+        self.assertEqual((fulano.email, fulano.endereco), ("f@x.com", "Rua A, 1, CEP 60000-000"))
+        self.assertEqual(fulano.boxes.count(), 2)  # mesmo CPF nas duas sedes = mesmo cliente
+        assef = Box.objects.get(numero="2").cliente
+        self.assertEqual((assef.nome, assef.cpf), ("Assef Autos Ltda", "58457820000197"))
+        b2 = Box.objects.get(numero="2")
+        self.assertEqual((b2.tamanho, b2.dia_vencimento), ("G1", 25))  # 765 = G1 com 10% de desconto
+        self.assertIn("Vencimento estimado: dia 25", b2.observacao)
+        self.assertIn("Valor promocional", b2.observacao)
+        livre = Box.objects.get(numero="35")
+        self.assertEqual((livre.alugado, livre.tamanho, livre.valor), (False, "A definir", 0))
+        self.assertIn("Telefone do exterior", Box.objects.get(sede__nome="Cambeba", numero="3").observacao)
+        self.assertEqual(Contrato.objects.filter(fim__isnull=True).count(), 3)
+        # mensalidades só a partir do próximo vencimento, não desde 2020
+        cobranca.garantir_mensalidades(ate=date(2026, 11, 13))
+        self.assertEqual(Mensalidade.objects.filter(competencia__lt=date(2026, 11, 1)).count(), 0)
+        # Cambeba 3 vence dia 5: o de novembro já passou, então a cobrança começa em dezembro
+        self.assertFalse(Mensalidade.objects.filter(box__sede__nome="Cambeba", box__numero="3").exists())
+        self.assertEqual(Box.objects.get(sede__nome="Cambeba", numero="3").cobranca_desde, date(2026, 12, 1))
+        # rodar de novo não duplica
+        self.importar(["Cocó;1.1;;1300,00;Fulano de Tal;529.982.247-25;;;;27/06/2025;25;"], "--confirmar")
+        self.assertEqual(Box.objects.count(), 4)
+        self.assertEqual(Box.objects.get(numero="1.1").valor, Decimal("1300.00"))
+        self.assertEqual(Cliente.objects.count(), 2)
+
+    def test_recusa_banco_com_dados_de_exemplo(self):
+        Box.objects.create(sede=Sede.objects.get(nome="Cocó"), tamanho="P1", valor=10)
+        with self.assertRaisesMessage(Exception, "--apagar-dados-de-exemplo"):
+            self.importar(["Cocó;1;;400;;;;;;;;"], "--confirmar")
+        self.importar(["Cocó;1;;400;;;;;;;;"], "--confirmar", "--apagar-dados-de-exemplo")
+        self.assertEqual(list(Box.objects.values_list("numero", "tamanho")), [("1", "P1")])
+
+    def test_cnpj_e_numero_pela_api(self):
+        ana = User.objects.create_user("52998224725")
+        coco = Sede.objects.get(nome="Cocó")
+        Funcionario.objects.create(usuario=ana, nome="Ana", cpf="52998224725", sede=coco)
+        self.client.force_authenticate(ana)
+        box = Box.objects.create(sede=coco, tamanho="P1", valor=100, numero="1.1")
+        outro = Box.objects.create(sede=coco, tamanho="P1", valor=100)
+        r = self.client.patch(f"/api/boxes/{outro.id}/", {"numero": "1.1"})
+        self.assertIn("numero", r.data)
+        r = self.client.post(f"/api/boxes/{box.id}/alugar/", {
+            "nome": "Empresa X", "telefone": "85999990000", "email": "x@x.com",
+            "cpf": "58.457.820/0001-97", "endereco": "Rua Z, 10", "dia_vencimento": 10,
+            "anexo_pagamento": SimpleUploadedFile("c.pdf", b"%PDF", content_type="application/pdf"),
+        }, format="multipart")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data["numero"], "1.1")
+        c = Cliente.objects.get()
+        self.assertEqual((c.cpf, c.endereco), ("58457820000197", "Rua Z, 10"))
+        r = self.client.patch(f"/api/clientes/{c.id}/", {"cpf": "58.457.820/0001-00"})
+        self.assertIn("CNPJ inválido", str(r.data["cpf"]))
+        pdf = self.client.get(f"/api/contratos/{Contrato.objects.get().id}/pdf/")
+        self.assertEqual(pdf.status_code, 200)

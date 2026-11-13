@@ -17,7 +17,7 @@ def enviar_nota_fiscal(mensalidade):
     contexto = {
         "nome": cliente.nome.split()[0],
         "mes": mes,
-        "box": box.pk,
+        "box": box.numero or f"#{box.pk}",
         "tamanho": box.tamanho,
         "unidade": box.sede.nome_publico or box.sede.nome,
         "valor": f"R$ {mensalidade.valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),

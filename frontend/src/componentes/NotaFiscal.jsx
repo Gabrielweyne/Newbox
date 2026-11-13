@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { api } from "../api";
-import { formatarData } from "../formato";
+import { formatarData, nomeBox } from "../formato";
 import { IconeDocumento, IconeEmail } from "./Icones";
 import { Aviso, Botao, Campo, Modal } from "./ui";
 
@@ -75,7 +75,7 @@ function Formulario({ m, aoFechar, aoSalvar }) {
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
       <div className="rounded-md bg-roxo-50 px-4 py-3 text-sm text-roxo-700">
-        <p className="font-medium">{m.cliente_nome} · Box #{m.box}</p>
+        <p className="font-medium">{m.cliente_nome} · {nomeBox(m.box_numero, m.box)}</p>
         <p>Mensalidade com vencimento em {formatarData(m.vencimento)}</p>
         <p className="mt-1 flex items-center gap-1.5">
           <IconeEmail className="size-4" /> Será enviada para <strong>{m.cliente_email}</strong>

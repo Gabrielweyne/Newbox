@@ -4,3 +4,6 @@
 /media/
 __pycache__/
 db.sqlite3
+
+# Dados reais de clientes (planilhas para importar): nunca vão para o GitHub
+dados_iniciais/

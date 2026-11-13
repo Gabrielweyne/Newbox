@@ -35,7 +35,7 @@ export function mensagemCobranca(m) {
   const quando = m.situacao === "vence_hoje" ? "que vence hoje" : `que venceu em ${d}/${mes}/${a}`;
   return (
     `Olá, ${nome}! Aqui é da Newbox, unidade ${m.sede_nome}.\n` +
-    `Passando para lembrar da mensalidade do box #${m.box} (${m.box_tamanho}), no valor de ${valor}, ${quando}.\n` +
+    `Passando para lembrar da mensalidade do box ${m.box_numero || "#" + m.box} (${m.box_tamanho}), no valor de ${valor}, ${quando}.\n` +
     `Se já pagou, é só nos enviar o comprovante por aqui. Obrigado!`
   );
 }

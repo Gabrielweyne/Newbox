@@ -4,7 +4,7 @@ import { Banner } from "../componentes/Layout";
 import { IconeBusca, IconeLapis, IconePessoas, IconeWhatsapp } from "../componentes/Icones";
 import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Vazio } from "../componentes/ui";
 import { api, listarTudo } from "../api";
-import { formatarCpf } from "../formato";
+import { formatarDocumento } from "../formato";
 import { formatarTelefone, linkWhatsapp } from "../whatsapp";
 
 /** Editar dados do cliente. Clientes novos só são cadastrados ao alugar um box. */
@@ -12,14 +12,15 @@ export function FormCliente({ cliente, aoSalvar, aoFechar }) {
   const [dados, setDados] = useState({
     nome: cliente?.nome ?? "",
     telefone: formatarTelefone(cliente?.telefone ?? ""),
-    cpf: formatarCpf(cliente?.cpf ?? ""),
+    cpf: formatarDocumento(cliente?.cpf ?? ""),
     email: cliente?.email ?? "",
+    endereco: cliente?.endereco ?? "",
   });
   const [erro, setErro] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const mudar = (c) => (e) => {
     const v = e.target.value;
-    setDados((d) => ({ ...d, [c]: c === "telefone" ? formatarTelefone(v) : c === "cpf" ? formatarCpf(v) : v }));
+    setDados((d) => ({ ...d, [c]: c === "telefone" ? formatarTelefone(v) : c === "cpf" ? formatarDocumento(v) : v }));
   };
 
   async function enviar(e) {
@@ -38,7 +39,7 @@ export function FormCliente({ cliente, aoSalvar, aoFechar }) {
 
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
-      {erro && !["nome", "telefone", "cpf", "email"].some((c) => erro.campo(c)) && <Aviso>{erro.message}</Aviso>}
+      {erro && !["nome", "telefone", "cpf", "email", "endereco"].some((c) => erro.campo(c)) && <Aviso>{erro.message}</Aviso>}
       <Campo rotulo="Nome do cliente" value={dados.nome} onChange={mudar("nome")} erro={erro?.campo("nome")} autoFocus />
       <Campo
         rotulo="WhatsApp"
@@ -50,7 +51,7 @@ export function FormCliente({ cliente, aoSalvar, aoFechar }) {
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <Campo
-          rotulo="CPF (opcional)"
+          rotulo="CPF ou CNPJ (opcional)"
           inputMode="numeric"
           placeholder="000.000.000-00"
           value={dados.cpf}
@@ -59,6 +60,13 @@ export function FormCliente({ cliente, aoSalvar, aoFechar }) {
         />
         <Campo rotulo="E-mail" type="email" ajuda="Para onde vai a nota fiscal." value={dados.email} onChange={mudar("email")} erro={erro?.campo("email")} />
       </div>
+      <Campo
+        rotulo="Endereço com CEP (opcional)"
+        placeholder="Rua, número, bairro, CEP"
+        value={dados.endereco}
+        onChange={mudar("endereco")}
+        erro={erro?.campo("endereco")}
+      />
       <div className="flex justify-end gap-2 pt-2">
         <Botao type="button" variante="fantasma" onClick={aoFechar}>
           Cancelar
@@ -135,7 +143,7 @@ export default function Clientes() {
           <IconeBusca className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-marinho-claro/50" />
           <input
             type="search"
-            placeholder="Buscar por nome, WhatsApp ou CPF"
+            placeholder="Buscar por nome, WhatsApp, CPF ou CNPJ"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             className="w-full rounded-md border border-roxo-200 bg-white py-2 pr-3 pl-9 text-sm focus:border-roxo focus:ring-2 focus:ring-roxo-100 focus:outline-none"

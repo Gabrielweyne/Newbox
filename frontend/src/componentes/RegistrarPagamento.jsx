@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import { useAvisos } from "../avisos";
-import { formatarData, formatarMoeda } from "../formato";
+import { formatarData, formatarMoeda, nomeBox } from "../formato";
 import { IconeClipe } from "./Icones";
 import { Aviso, Botao, Campo, Modal } from "./ui";
 
@@ -48,7 +48,7 @@ function Formulario({ m, aoFechar, aoSalvar }) {
     <form onSubmit={enviar} className="space-y-4" noValidate>
       <div className="rounded-md bg-roxo-50 px-4 py-3 text-sm text-roxo-700">
         <p className="font-medium">
-          Box #{m.box} · {m.cliente_nome}
+          {nomeBox(m.box_numero, m.box)} · {m.cliente_nome}
         </p>
         <p>
           Vencimento {formatarData(m.vencimento)} · {formatarMoeda(m.valor)}

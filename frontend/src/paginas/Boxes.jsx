@@ -16,7 +16,7 @@ import { Aviso, Botao, Campo, Carregando, Cartao, Etiqueta, Modal, Selecao, Vazi
 import { api, ErroApi, listarTudo } from "../api";
 import { useAuth } from "../auth";
 import { useAvisos } from "../avisos";
-import { DIAS_VENCIMENTO, formatarCpf, formatarMoeda, formatarNumero } from "../formato";
+import { DIAS_VENCIMENTO, formatarDocumento, formatarMoeda, formatarNumero, nomeBox } from "../formato";
 import { formatarTelefone } from "../whatsapp";
 
 /* ---------- Formulário de box (novo / editar) ---------- */
@@ -29,6 +29,8 @@ function FormBox({ box, sedes, admin, sedePadrao, aoSalvar, aoFechar }) {
     tamanho: box?.tamanho ?? "",
     valor: box?.valor ?? "",
     dia_vencimento: box?.dia_vencimento ?? "",
+    numero: box?.numero ?? "",
+    observacao: box?.observacao ?? "",
   });
   const [tipos, setTipos] = useState([]);
   const [erro, setErro] = useState(null);
@@ -52,7 +54,7 @@ function FormBox({ box, sedes, admin, sedePadrao, aoSalvar, aoFechar }) {
     e.preventDefault();
     setEnviando(true);
     setErro(null);
-    const corpo = { valor: dados.valor };
+    const corpo = { valor: dados.valor, numero: dados.numero, observacao: dados.observacao };
     if (dados.tipo && dados.tipo !== "outro") corpo.tipo = Number(dados.tipo);
     else {
       corpo.tipo = null;
@@ -74,7 +76,15 @@ function FormBox({ box, sedes, admin, sedePadrao, aoSalvar, aoFechar }) {
 
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
-      {erro && !["sede", "tipo", "tamanho", "valor"].some((c) => erro.campo(c)) && <Aviso>{erro.message}</Aviso>}
+      {erro && !["sede", "tipo", "tamanho", "valor", "numero"].some((c) => erro.campo(c)) && <Aviso>{erro.message}</Aviso>}
+      <Campo
+        rotulo="Número do box"
+        placeholder="Ex.: 1.1"
+        value={dados.numero}
+        onChange={mudar("numero")}
+        erro={erro?.campo("numero")}
+        ajuda="O número pintado no box."
+      />
       {admin && (
         <Selecao rotulo="Sede" value={dados.sede} onChange={mudar("sede")} erro={erro?.campo("sede")}>
           <option value="">Selecione</option>
@@ -129,6 +139,19 @@ function FormBox({ box, sedes, admin, sedePadrao, aoSalvar, aoFechar }) {
               : "Preenchido pelo catálogo; pode ser ajustado."
         }
       />
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-medium">Observação</span>
+        <textarea
+          rows={3}
+          value={dados.observacao}
+          onChange={mudar("observacao")}
+          placeholder="Ex.: valor promocional até 10/08"
+          className="w-full rounded-md border border-roxo-200 bg-white px-3 py-2 text-sm focus:border-roxo focus:ring-2 focus:ring-roxo-100 focus:outline-none"
+        />
+        <span className="mt-1 block text-xs text-marinho-claro/70">
+          Anotações deste box. Apague o que já foi conferido.
+        </span>
+      </label>
       {box?.alugado && (
         <Selecao
           rotulo="Dia de vencimento"
@@ -155,6 +178,20 @@ function FormBox({ box, sedes, admin, sedePadrao, aoSalvar, aoFechar }) {
   );
 }
 
+/** Observação do box (ex.: o que veio da planilha antiga e precisa ser conferido). */
+function Observacao({ texto }) {
+  const conferir = PARA_CONFERIR.test(texto);
+  return (
+    <p
+      className={`mt-1 max-w-72 text-xs leading-snug ${conferir ? "text-amber-700" : "text-marinho-claro/70"}`}
+      title={texto}
+    >
+      {conferir && "⚠ "}
+      {texto.length > 120 ? `${texto.slice(0, 117)}...` : texto}
+    </p>
+  );
+}
+
 /* ---------- Alugar box: cliente + comprovante ---------- */
 
 const soDigitos = (v) => String(v || "").replace(/\D/g, "");
@@ -167,7 +204,7 @@ export function FormAlugar({ box, interessado, aoSalvar, aoFechar }) {
   const [clientes, setClientes] = useState(null);
   const [exClientes, setExClientes] = useState([]);
   const [cliente, setCliente] = useState("");
-  const [novo, setNovo] = useState({ nome: "", telefone: "", email: "", cpf: "" });
+  const [novo, setNovo] = useState({ nome: "", telefone: "", email: "", cpf: "", endereco: "" });
   const [arquivo, setArquivo] = useState(null);
   const [dia, setDia] = useState("");
   const [erro, setErro] = useState(null);
@@ -193,6 +230,7 @@ export function FormAlugar({ box, interessado, aoSalvar, aoFechar }) {
             telefone: formatarTelefone(interessado.telefone || ""),
             email: interessado.email || "",
             cpf: "",
+            endereco: "",
           });
         }
       })
@@ -203,7 +241,7 @@ export function FormAlugar({ box, interessado, aoSalvar, aoFechar }) {
   const exEscolhido = exClientes.find((c) => String(c.id) === cliente);
   const mudarNovo = (c) => (e) => {
     const v = e.target.value;
-    setNovo((d) => ({ ...d, [c]: c === "telefone" ? formatarTelefone(v) : c === "cpf" ? formatarCpf(v) : v }));
+    setNovo((d) => ({ ...d, [c]: c === "telefone" ? formatarTelefone(v) : c === "cpf" ? formatarDocumento(v) : v }));
     setErro(null);
   };
 
@@ -231,12 +269,12 @@ export function FormAlugar({ box, interessado, aoSalvar, aoFechar }) {
   }
 
   if (!clientes && !erro) return <Carregando texto="Carregando clientes..." />;
-  const campos = ["cliente", "nome", "telefone", "email", "cpf", "anexo_pagamento", "dia_vencimento"];
+  const campos = ["cliente", "nome", "telefone", "email", "cpf", "endereco", "anexo_pagamento", "dia_vencimento"];
 
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
       <p className="rounded-md bg-roxo-50 px-4 py-3 text-sm text-roxo-700">
-        Box #{box.id} · {box.tamanho} · {formatarMoeda(box.valor)} · Sede {box.sede_nome}
+        {nomeBox(box.numero, box.id)} · {box.tamanho} · {formatarMoeda(box.valor)} · Sede {box.sede_nome}
       </p>
       {interessado && (
         <Aviso tipo="info">
@@ -298,7 +336,7 @@ export function FormAlugar({ box, interessado, aoSalvar, aoFechar }) {
               ajuda="Para onde vai a nota fiscal."
             />
             <Campo
-              rotulo="CPF (opcional)"
+              rotulo="CPF ou CNPJ (opcional)"
               inputMode="numeric"
               placeholder="000.000.000-00"
               value={novo.cpf}
@@ -306,6 +344,13 @@ export function FormAlugar({ box, interessado, aoSalvar, aoFechar }) {
               erro={erro?.campo("cpf")}
             />
           </div>
+          <Campo
+            rotulo="Endereço com CEP (opcional)"
+            placeholder="Rua, número, bairro, CEP"
+            value={novo.endereco}
+            onChange={mudarNovo("endereco")}
+            erro={erro?.campo("endereco")}
+          />
         </div>
       )}
       <Selecao
@@ -395,7 +440,12 @@ const FILTROS = [
   { valor: "todos", rotulo: "Todos" },
   { valor: "livres", rotulo: "Livres" },
   { valor: "alugados", rotulo: "Alugados" },
+  { valor: "conferir", rotulo: "⚠ Para conferir" },
 ];
+
+const PARA_CONFERIR = /conferir|definir|estimad|inválid|não informad|não tem|incomplet/i;
+const naSituacao = (s, b) =>
+  s === "todos" || (s === "conferir" ? PARA_CONFERIR.test(b.observacao || "") : (s === "alugados") === b.alugado);
 
 function Acoes({ box, abrir }) {
   const btn = "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition";
@@ -473,10 +523,11 @@ export default function Boxes() {
     const termo = busca.trim().toLowerCase();
     return (boxes || []).filter(
       (b) =>
-        (status === "todos" || (status === "alugados") === b.alugado) &&
+        naSituacao(status, b) &&
         (!sedeFiltro || String(b.sede) === sedeFiltro) &&
         (!termo ||
           String(b.id) === termo.replace("#", "") ||
+          (b.numero || "").toLowerCase() === termo.replace(/^box\s*/, "") ||
           b.tamanho.toLowerCase().includes(termo) ||
           (b.cliente_nome || "").toLowerCase().includes(termo))
     );
@@ -490,7 +541,7 @@ export default function Boxes() {
   };
 
   const contagem = (s) =>
-    (boxes || []).filter((b) => (!sedeFiltro || String(b.sede) === sedeFiltro) && (s === "todos" || (s === "alugados") === b.alugado)).length;
+    (boxes || []).filter((b) => (!sedeFiltro || String(b.sede) === sedeFiltro) && naSituacao(s, b)).length;
 
   return (
     <>
@@ -556,7 +607,7 @@ export default function Boxes() {
           return (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
               <span>
-                <strong>🎉 Box #{b.id} alugado para {b.cliente_nome}!</strong> O contrato já está pronto para imprimir e assinar.
+                <strong>🎉 {nomeBox(b.numero, b.id)} alugado para {b.cliente_nome}!</strong> O contrato já está pronto para imprimir e assinar.
               </span>
               <span className="flex items-center gap-2">
                 <BotaoPdf id={b.contrato_ativo} rotulo="Abrir contrato" className="bg-white" />
@@ -592,7 +643,10 @@ export default function Boxes() {
                 <tbody className="divide-y divide-roxo-100">
                   {visiveis.map((b) => (
                     <tr key={b.id} className="hover:bg-fundo">
-                      <td className="px-5 py-3 font-semibold text-marinho">#{b.id}</td>
+                      <td className="px-5 py-3">
+                        <p className="font-semibold whitespace-nowrap text-marinho">{b.numero || `#${b.id}`}</p>
+                        {b.observacao && <Observacao texto={b.observacao} />}
+                      </td>
                       {usuario.admin && <td className="px-5 py-3">{b.sede_nome}</td>}
                       <td className="px-5 py-3">
                         <p>{b.tamanho}</p>
@@ -627,8 +681,9 @@ export default function Boxes() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-marinho">
-                          Box #{b.id} <span className="font-normal text-marinho-claro/70">· {b.tamanho}</span>
+                          {nomeBox(b.numero, b.id)} <span className="font-normal text-marinho-claro/70">· {b.tamanho}</span>
                         </p>
+                        {b.observacao && <Observacao texto={b.observacao} />}
                         <p className="text-sm tabular-nums">{formatarMoeda(b.valor)}{usuario.admin && ` · ${b.sede_nome}`}</p>
                         {b.cliente_nome && (
                           <p className="mt-1 text-sm text-roxo">
@@ -647,7 +702,7 @@ export default function Boxes() {
         </Cartao>
       </div>
 
-      <Modal aberto={janela?.tipo === "editar"} titulo={`Editar box #${janela?.box?.id}`} aoFechar={fechar}>
+      <Modal aberto={janela?.tipo === "editar"} titulo={`Editar ${nomeBox(janela?.box?.numero, janela?.box?.id).toLowerCase()}`} aoFechar={fechar}>
         <FormBox
           box={janela?.box}
           sedes={sedes}
@@ -669,20 +724,20 @@ export default function Boxes() {
           />
         )}
       </Modal>
-      <Modal aberto={janela?.tipo === "historico"} titulo={`Histórico do box #${janela?.box?.id}`} aoFechar={fechar}>
+      <Modal aberto={janela?.tipo === "historico"} titulo={`Histórico do ${nomeBox(janela?.box?.numero, janela?.box?.id).toLowerCase()}`} aoFechar={fechar}>
         {janela?.tipo === "historico" && <HistoricoBox box={janela.box} />}
       </Modal>
       <Confirmar
         aberto={janela?.tipo === "liberar"}
-        titulo={`Liberar box #${janela?.box?.id}?`}
+        titulo={`Liberar ${nomeBox(janela?.box?.numero, janela?.box?.id).toLowerCase()}?`}
         textoBotao="Liberar box"
         aoFechar={fechar}
         aoConfirmar={async () => {
           const r = await api(`/boxes/${janela.box.id}/liberar/`, { metodo: "POST" });
           setAvisoLiberado(
             r.cliente_excluido
-              ? `Box #${r.id} liberado. ${janela.box.cliente_nome} não tem outro box e foi para Clientes > Ex-clientes (o histórico continua guardado).`
-              : `Box #${r.id} liberado.`
+              ? `${nomeBox(r.numero, r.id)} liberado. ${janela.box.cliente_nome} não tem outro box e foi para Clientes > Ex-clientes (o histórico continua guardado).`
+              : `${nomeBox(r.numero, r.id)} liberado.`
           );
           carregar();
         }}

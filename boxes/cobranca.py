@@ -54,8 +54,9 @@ def garantir_mensalidades(ate=None, boxes=None):
     from .models import Box, Mensalidade
 
     limite = inicio_do_mes(ate or hoje())
-    boxes = (boxes if boxes is not None else Box.objects.all()).filter(cliente__isnull=False)
-    boxes = list(boxes.only("id", "cliente_id", "valor", "dia_vencimento", "alugado_em"))
+    # Box com valor zero (ex.: cobrado junto com outro box do mesmo cliente) não gera mensalidade
+    boxes = (boxes if boxes is not None else Box.objects.all()).filter(cliente__isnull=False, valor__gt=0)
+    boxes = list(boxes.only("id", "cliente_id", "valor", "dia_vencimento", "alugado_em", "cobranca_desde"))
     if not boxes:
         return 0
     existentes = set(
@@ -63,7 +64,7 @@ def garantir_mensalidades(ate=None, boxes=None):
     )
     novas = []
     for box in boxes:
-        competencia = inicio_do_mes(box.alugado_em)
+        competencia = inicio_do_mes(max(box.alugado_em, box.cobranca_desde or box.alugado_em))
         while competencia <= limite:
             if (box.id, competencia) not in existentes:
                 novas.append(
@@ -153,7 +154,8 @@ def encerrar_aluguel(box, usuario=None):
     box.anexo_pagamento = None
     box.dia_vencimento = None
     box.alugado_em = None
-    box.save(update_fields=["cliente", "anexo_pagamento", "dia_vencimento", "alugado_em"])
+    box.cobranca_desde = None
+    box.save(update_fields=["cliente", "anexo_pagamento", "dia_vencimento", "alugado_em", "cobranca_desde"])
     if cliente and cliente.ativo and not cliente.boxes.exists():
         from django.utils import timezone
 

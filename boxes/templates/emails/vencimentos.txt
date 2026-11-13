@@ -3,15 +3,15 @@
 ===== Sede {{ s.sede.nome }} =====
 
 NÃO PAGARAM ({{ s.nao_pagas|length }}):
-{% for m in s.nao_pagas %}  - Box #{{ m.box_id }} ({{ m.box.tamanho }}) · {{ m.cliente.nome }} · R$ {{ m.valor }}
+{% for m in s.nao_pagas %}  - {{ m.box.rotulo }} ({{ m.box.tamanho }}) · {{ m.cliente.nome }} · R$ {{ m.valor }}
 {% empty %}  Ninguém. Todos em dia!
 {% endfor %}
 PAGARAM ({{ s.pagas|length }}):
-{% for m in s.pagas %}  - Box #{{ m.box_id }} · {{ m.cliente.nome }} · pago em {{ m.pago_em|date:"d/m" }}
+{% for m in s.pagas %}  - {{ m.box.rotulo }} · {{ m.cliente.nome }} · pago em {{ m.pago_em|date:"d/m" }}
 {% empty %}  Nenhum pagamento registrado ainda.
 {% endfor %}{% if s.atrasadas %}
 EM ATRASO ({{ s.atrasadas|length }}):
-{% for m in s.atrasadas %}  - Box #{{ m.box_id }} · {{ m.cliente.nome }} · venceu em {{ m.vencimento|date:"d/m/Y" }} · R$ {{ m.valor }}
+{% for m in s.atrasadas %}  - {{ m.box.rotulo }} · {{ m.cliente.nome }} · venceu em {{ m.vencimento|date:"d/m/Y" }} · R$ {{ m.valor }}
 {% endfor %}{% endif %}{% endfor %}
 Registre os pagamentos em: {{ link }}
 

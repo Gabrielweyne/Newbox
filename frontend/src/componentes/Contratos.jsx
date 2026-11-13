@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { abrirPdf } from "../api";
-import { formatarData, formatarMoeda } from "../formato";
+import { formatarData, formatarMoeda, nomeBox } from "../formato";
 import { IconeDocumento } from "./Icones";
 import { Etiqueta } from "./ui";
 
@@ -44,11 +44,11 @@ export default function ListaContratos({ contratos, mostrarCliente = false, most
         <li key={c.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 text-sm">
             <p className="font-medium text-marinho">
-              {mostrarCliente ? c.cliente_nome : `Box #${c.box} · ${c.tamanho}`}{" "}
+              {mostrarCliente ? c.cliente_nome : `${nomeBox(c.box_numero, c.box)} · ${c.tamanho}`}{" "}
               {c.ativo ? <Etiqueta cor="verde">Ativo</Etiqueta> : <Etiqueta cor="cinza">Encerrado</Etiqueta>}
             </p>
             <p className="text-xs text-marinho-claro/70">
-              {mostrarBox && mostrarCliente && `Box #${c.box} · `}
+              {mostrarBox && mostrarCliente && `${nomeBox(c.box_numero, c.box)} · `}
               {c.sede_nome} · {formatarData(c.inicio)} até {c.fim ? formatarData(c.fim) : "hoje"} ·{" "}
               <strong className="font-medium text-marinho-claro">{c.duracao}</strong> · {formatarMoeda(c.valor)}/mês
             </p>

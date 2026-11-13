@@ -9,7 +9,7 @@ import RegistrarPagamento from "../componentes/RegistrarPagamento";
 import { Aviso, Botao, Carregando, Cartao, Etiqueta, Modal, Vazio } from "../componentes/ui";
 import { api } from "../api";
 import { useAvisos } from "../avisos";
-import { formatarCpf, formatarData, formatarMoeda, SITUACOES } from "../formato";
+import { formatarDocumento, formatarData, formatarMoeda, SITUACOES, nomeBox } from "../formato";
 import { formatarTelefone, linkWhatsapp } from "../whatsapp";
 import { FormCliente } from "./Clientes";
 
@@ -88,7 +88,12 @@ export default function FichaCliente() {
                 </button>
               )}
             </p>
-            {cliente.cpf && <p className="text-marinho-claro/80">CPF {formatarCpf(cliente.cpf)}</p>}
+            {cliente.cpf && (
+              <p className="text-marinho-claro/80">
+                {cliente.cpf.length === 14 ? "CNPJ" : "CPF"} {formatarDocumento(cliente.cpf)}
+              </p>
+            )}
+            {cliente.endereco && <p className="text-marinho-claro/80">{cliente.endereco}</p>}
           </Cartao>
 
           <Cartao className={`p-5 ${emAtraso.length ? "ring-red-200" : ""}`}>
@@ -112,7 +117,7 @@ export default function FichaCliente() {
                 {boxes.map((b) => (
                   <li key={b.id} className="px-5 py-3">
                     <p className="font-medium text-marinho">
-                      Box #{b.id} · {b.tamanho} {b.em_atraso && <Etiqueta cor="vermelho">Em atraso</Etiqueta>}
+                      {nomeBox(b.numero, b.id)} · {b.tamanho} {b.em_atraso && <Etiqueta cor="vermelho">Em atraso</Etiqueta>}
                     </p>
                     <p className="text-xs text-marinho-claro/70">
                       {b.sede_nome} · {formatarMoeda(b.valor)}/mês · vence todo dia {b.dia_vencimento} · desde{" "}
@@ -158,7 +163,7 @@ export default function FichaCliente() {
                         Vence {formatarData(m.vencimento)} <Etiqueta cor={s.cor}>{s.rotulo}</Etiqueta>
                       </p>
                       <p className="text-xs text-marinho-claro/70">
-                        Box #{m.box} ({m.box_tamanho}) · {formatarMoeda(m.valor)}
+                        {nomeBox(m.box_numero, m.box)} ({m.box_tamanho}) · {formatarMoeda(m.valor)}
                         {m.pago_em && ` · pago em ${formatarData(m.pago_em)}`}
                       </p>
                     </div>

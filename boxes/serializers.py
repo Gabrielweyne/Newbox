@@ -64,7 +64,9 @@ class ClienteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Cliente
-        fields = ["id", "nome", "telefone", "cpf", "email", "ativo", "excluido_em", "total_boxes", "atrasadas"]
+        fields = [
+            "id", "nome", "telefone", "cpf", "email", "endereco", "ativo", "excluido_em", "total_boxes", "atrasadas",
+        ]
         read_only_fields = ["ativo", "excluido_em"]
         extra_kwargs = {
             "telefone": {
@@ -74,7 +76,7 @@ class ClienteSerializer(serializers.ModelSerializer):
                     "required": "Informe o WhatsApp do cliente.",
                 },
             },
-            "cpf": {"max_length": 14, "required": False},
+            "cpf": {"max_length": 18, "required": False},  # aceita CPF ou CNPJ com pontuação
             "email": {
                 "required": True, "allow_blank": False,
                 "error_messages": {
@@ -107,11 +109,14 @@ class ClienteSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     f"Este CPF é de {outro.nome}, que é ex-cliente. Escolha {outro.nome} na lista em vez de cadastrar de novo."
                 )
-            raise serializers.ValidationError("Já existe cliente com este CPF.")
+            raise serializers.ValidationError(f"Já existe cliente com este {'CNPJ' if len(cpf) == 14 else 'CPF'}: {outro.nome}.")
         return cpf
 
     def validate_email(self, valor):
         return (valor or "").strip().lower()
+
+    def validate_endereco(self, valor):
+        return " ".join((valor or "").split())
 
 
 class BoxSerializer(serializers.ModelSerializer):
@@ -130,11 +135,12 @@ class BoxSerializer(serializers.ModelSerializer):
     class Meta:
         model = Box
         fields = [
-            "id", "sede", "sede_nome", "tipo", "tipo_detalhe", "tamanho", "valor",
+            "id", "numero", "sede", "sede_nome", "tipo", "tipo_detalhe", "tamanho", "valor", "observacao",
             "cliente", "cliente_nome", "anexo_pagamento", "dia_vencimento", "alugado_em",
             "alugado", "em_atraso", "contrato_ativo", "interessado",
         ]
         read_only_fields = ["alugado_em"]
+        validators = []  # número repetido na sede é checado em validate(), com mensagem clara
         # Funcionário pode omitir a sede: usa a dele automaticamente.
         # Com um tipo do catálogo, tamanho e valor vêm dele se não forem informados.
         extra_kwargs = {"sede": {"required": False}, "tamanho": {"required": False}, "valor": {"required": False}}
@@ -151,8 +157,19 @@ class BoxSerializer(serializers.ModelSerializer):
             "sugestao_uso": t.sugestao_uso, "valor_catalogo": t.valor,
         }
 
+    def validate_numero(self, valor):
+        return " ".join((valor or "").split())
+
     def validate(self, attrs):
         self._validar_sede(attrs)
+        numero = attrs.get("numero", getattr(self.instance, "numero", ""))
+        sede = attrs.get("sede", getattr(self.instance, "sede", None))
+        if numero and sede:
+            repetido = Box.objects.filter(sede=sede, numero=numero)
+            if self.instance:
+                repetido = repetido.exclude(pk=self.instance.pk)
+            if repetido.exists():
+                raise serializers.ValidationError({"numero": f"Já existe o box {numero} nesta sede."})
         self._aplicar_tipo(attrs)
         atual = self.instance
         cliente = attrs.get("cliente", getattr(atual, "cliente", None))
@@ -297,6 +314,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
 
 class MensalidadeSerializer(serializers.ModelSerializer):
     box_tamanho = serializers.CharField(source="box.tamanho", read_only=True)
+    box_numero = serializers.CharField(source="box.numero", read_only=True)
     sede = serializers.IntegerField(source="box.sede_id", read_only=True)
     sede_nome = serializers.CharField(source="box.sede.nome", read_only=True)
     cliente_nome = serializers.CharField(source="cliente.nome", read_only=True)
@@ -308,7 +326,7 @@ class MensalidadeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mensalidade
         fields = [
-            "id", "box", "box_tamanho", "sede", "sede_nome", "cliente", "cliente_nome", "cliente_telefone",
+            "id", "box", "box_numero", "box_tamanho", "sede", "sede_nome", "cliente", "cliente_nome", "cliente_telefone",
             "competencia", "vencimento", "valor", "pago_em", "comprovante",
             "situacao", "registrado_por_nome",
             "nota_fiscal", "nota_numero", "nota_enviada_em", "nota_enviada_para", "cliente_email",
@@ -341,7 +359,7 @@ class VagaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Box
-        fields = ["id", "sede", "sede_nome", "tamanho", "valor"]
+        fields = ["id", "numero", "sede", "sede_nome", "tamanho", "valor"]
 
 
 class InteressadoSerializer(serializers.ModelSerializer):
@@ -410,11 +428,12 @@ class ContratoSerializer(serializers.ModelSerializer):
     sede = serializers.IntegerField(source="box.sede_id", read_only=True)
     sede_nome = serializers.CharField(source="box.sede.nome", read_only=True)
     duracao = serializers.SerializerMethodField()
+    box_numero = serializers.CharField(source="box.numero", read_only=True)
 
     class Meta:
         model = Contrato
         fields = [
-            "id", "numero", "box", "sede", "sede_nome", "cliente", "cliente_nome", "tamanho",
+            "id", "numero", "box", "box_numero", "sede", "sede_nome", "cliente", "cliente_nome", "tamanho",
             "valor", "dia_vencimento", "inicio", "fim", "ativo", "duracao",
         ]
         read_only_fields = fields

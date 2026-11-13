@@ -11,7 +11,7 @@ import { Aviso, Carregando, Cartao, Etiqueta } from "../componentes/ui";
 import { listarTudo } from "../api";
 import { useAuth } from "../auth";
 import { useAvisos } from "../avisos";
-import { formatarData, formatarMoeda, primeiroNome } from "../formato";
+import { formatarData, formatarMoeda, primeiroNome, nomeBox } from "../formato";
 
 const BOLHAS = {
   roxo: "bg-roxo-100 text-roxo",
@@ -83,7 +83,7 @@ function LinhaAviso({ m, admin, aoPagar }) {
           {m.cliente_nome}
         </Link>
         <p className="text-xs text-marinho-claro/70">
-          Box #{m.box}
+          {nomeBox(m.box_numero, m.box)}
           {admin && ` · ${m.sede_nome}`} · {formatarMoeda(m.valor)}
           {m.situacao === "atrasada" && ` · venceu ${formatarData(m.vencimento)}`}
         </p>
@@ -185,7 +185,7 @@ function VagasParaEspera() {
             <div className="min-w-0">
               <p className="truncate font-medium text-marinho">{i.nome}</p>
               <p className="text-xs text-marinho-claro/70">
-                Box #{i.vagas[0].id} · {i.vagas[0].tamanho} · {i.vagas[0].sede_nome}
+                {nomeBox(i.vagas[0].numero, i.vagas[0].id)} · {i.vagas[0].tamanho} · {i.vagas[0].sede_nome}
               </p>
             </div>
             <a

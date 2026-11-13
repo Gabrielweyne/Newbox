@@ -14,7 +14,7 @@
         <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#b42318;">Não pagaram ({{ s.nao_pagas|length }})</p>
         {% for m in s.nao_pagas %}
         <p style="margin:0 0 6px;font-size:14px;padding:8px 12px;background:#fef3f2;border-radius:6px;">
-          <strong>Box #{{ m.box_id }}</strong> · {{ m.cliente.nome }} · R$ {{ m.valor }}
+          <strong>{{ m.box.rotulo }}</strong> · {{ m.cliente.nome }} · R$ {{ m.valor }}
         </p>
         {% empty %}
         <p style="margin:0 0 6px;font-size:14px;color:#027a48;">Ninguém. Todos em dia!</p>
@@ -23,7 +23,7 @@
         <p style="margin:16px 0 8px;font-size:13px;font-weight:bold;color:#027a48;">Pagaram ({{ s.pagas|length }})</p>
         {% for m in s.pagas %}
         <p style="margin:0 0 6px;font-size:14px;padding:8px 12px;background:#ecfdf3;border-radius:6px;">
-          <strong>Box #{{ m.box_id }}</strong> · {{ m.cliente.nome }} · pago em {{ m.pago_em|date:"d/m" }}
+          <strong>{{ m.box.rotulo }}</strong> · {{ m.cliente.nome }} · pago em {{ m.pago_em|date:"d/m" }}
         </p>
         {% empty %}
         <p style="margin:0 0 6px;font-size:14px;color:#52525b;">Nenhum pagamento registrado ainda.</p>
@@ -33,7 +33,7 @@
         <p style="margin:16px 0 8px;font-size:13px;font-weight:bold;color:#b54708;">Em atraso ({{ s.atrasadas|length }})</p>
         {% for m in s.atrasadas %}
         <p style="margin:0 0 6px;font-size:14px;padding:8px 12px;background:#fffaeb;border-radius:6px;">
-          <strong>Box #{{ m.box_id }}</strong> · {{ m.cliente.nome }} · venceu em {{ m.vencimento|date:"d/m/Y" }} · R$ {{ m.valor }}
+          <strong>{{ m.box.rotulo }}</strong> · {{ m.cliente.nome }} · venceu em {{ m.vencimento|date:"d/m/Y" }} · R$ {{ m.valor }}
         </p>
         {% endfor %}
         {% endif %}

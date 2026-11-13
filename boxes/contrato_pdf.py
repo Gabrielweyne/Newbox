@@ -49,6 +49,8 @@ def data_extenso(d):
 
 
 def cpf_br(cpf):
+    if len(cpf or "") == 14:
+        return f"{cpf[:2]}.{cpf[2:5]}.{cpf[5:8]}/{cpf[8:12]}-{cpf[12:]}"
     return f"{cpf[:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:]}" if len(cpf or "") == 11 else "não informado"
 
 
@@ -90,7 +92,7 @@ def _render(contrato):
 
     box = contrato.box
     contexto = {
-        "box": box.pk, "tamanho": contrato.tamanho, "unidade": box.sede.nome, "endereco": box.sede.endereco,
+        "box": box.numero or box.pk, "tamanho": contrato.tamanho, "unidade": box.sede.nome, "endereco": box.sede.endereco,
         "valor": moeda(contrato.valor), "dia_vencimento": contrato.dia_vencimento,
         "inicio": data_br(contrato.inicio), "fim": data_br(contrato.fim),
         "cidade": settings.NEWBOX_CIDADE, "empresa": settings.NEWBOX_RAZAO_SOCIAL,
@@ -147,13 +149,14 @@ def gerar_pdf_contrato(contrato):
         Spacer(1, 3 * mm),
         tabela([
             ("LOCATÁRIO(A)", cliente.nome),
-            ("CPF", cpf_br(cliente.cpf)),
+            ("CNPJ" if len(cliente.cpf) == 14 else "CPF", cpf_br(cliente.cpf)),
+            ("ENDEREÇO", cliente.endereco or "não informado"),
             ("WHATSAPP", tel_br(cliente.telefone)),
             ("E-MAIL", cliente.email or "não informado"),
         ], [32 * mm, largura - 32 * mm]),
         Paragraph("DADOS DA LOCAÇÃO", estilo["secao"]),
         tabela([
-            ("BOX", f"nº {box.pk} – {contrato.tamanho}"),
+            ("BOX", f"nº {box.numero or box.pk} – {contrato.tamanho}"),
             ("VALOR MENSAL", moeda(contrato.valor)),
             ("VENCIMENTO", f"todo dia {contrato.dia_vencimento}"),
             ("INÍCIO", data_br(contrato.inicio)),

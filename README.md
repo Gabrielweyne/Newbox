@@ -173,6 +173,31 @@ Em `/`: conteúdo dos catálogos (diferenciais, soluções para empresas, facili
   `email`, `cpf`; mais `dia_vencimento`, `anexo_pagamento` e, opcional, `interessado`.
   `POST /api/clientes/` responde 405. `GET /api/clientes/?excluidos=true` lista os ex-clientes.
 
+## Importar a planilha de acompanhamento (dados reais)
+
+A planilha antiga (boxes, clientes e aluguéis das duas unidades) vira dados do sistema com:
+
+```
+py manage.py importar_planilha dados_iniciais/boxes_e_clientes.csv
+py manage.py importar_planilha dados_iniciais/boxes_e_clientes.csv --apagar-dados-de-exemplo --confirmar
+```
+
+- Sem `--confirmar` é só uma **simulação**: mostra o que seria gravado e o que precisa ser conferido.
+- `--apagar-dados-de-exemplo` apaga boxes, clientes, contratos, mensalidades, lista de espera e
+  comunicados de teste antes (funcionários, sedes e catálogo ficam).
+- O CSV (separado por `;`, abre no Excel) tem as colunas
+  `sede;box;tamanho;valor;cliente;cpf_cnpj;whatsapp;email;endereco;inicio;vencimento;observacao`.
+  A pasta `dados_iniciais/` **não vai para o GitHub** (tem dados pessoais dos clientes).
+- Cada linha vira um box com o **número** da planilha (1.1, 34...). Linha com cliente vira aluguel
+  com contrato desde a data de início. Cliente com o mesmo CPF/CNPJ em várias linhas é um só cliente.
+- Nada se perde: anotações da planilha e o que foi estimado (tamanho pelo valor, vencimento pelo
+  dia de início, dados inválidos) ficam na **observação do box**. Em **Boxes > ⚠ Para conferir**
+  aparecem só esses; depois de conferir, edite o box e apague a observação.
+- As mensalidades começam no **próximo vencimento** depois da importação (o que já venceu foi
+  controlado na planilha). Box com valor R$ 0,00 (cobrado junto com outro) não gera mensalidade.
+- Pode rodar de novo com a planilha corrigida: atualiza o que já existe em vez de duplicar.
+- Clientes aceitam **CPF ou CNPJ** e têm **endereço** (aparece no contrato).
+
 ## Nota fiscal por e-mail
 
 - A nota fiscal (NFS-e) é **emitida fora do sistema** (prefeitura/contador). Em cada mensalidade,
