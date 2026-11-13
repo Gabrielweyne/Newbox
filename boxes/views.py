@@ -100,7 +100,18 @@ class ClienteViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
             if len(digitos) >= 3:
                 cond |= Q(telefone__contains=digitos) | Q(cpf__contains=digitos)
             qs = qs.filter(cond)
+        if self.action == "list":
+            # Lista mostra só os ativos; ?excluidos=true mostra os excluídos (arquivados)
+            qs = qs.filter(ativo=self.request.query_params.get("excluidos") != "true")
         return qs.order_by("nome")
+
+    @action(detail=True, methods=["post"])
+    def reativar(self, request, pk=None):
+        cliente = self.get_object()
+        cliente.ativo = True
+        cliente.excluido_em = None
+        cliente.save(update_fields=["ativo", "excluido_em"])
+        return Response(self.get_serializer(self.get_queryset().get(pk=cliente.pk)).data)
 
     @action(detail=True, methods=["get"])
     def ficha(self, request, pk=None):
@@ -177,9 +188,22 @@ class BoxViewSet(FiltraPorSedeMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def liberar(self, request, pk=None):
+        """
+        Encerra o aluguel. Com {"excluir_cliente": true}, o cliente também sai da lista
+        de clientes (fica arquivado com todo o histórico), se não tiver outro box.
+        """
         box = self.get_object()
+        cliente = box.cliente
+        excluir = request.data.get("excluir_cliente") in (True, "true", "1", 1)
         cobranca.encerrar_aluguel(box, request.user)
-        return Response(self.get_serializer(self.get_queryset().get(pk=box.pk)).data)
+        cliente_excluido = False
+        if excluir and cliente and not cliente.boxes.exists():
+            cliente.ativo = False
+            cliente.excluido_em = timezone.now()
+            cliente.save(update_fields=["ativo", "excluido_em"])
+            cliente_excluido = True
+        dados = self.get_serializer(self.get_queryset().get(pk=box.pk)).data
+        return Response({**dados, "cliente_excluido": cliente_excluido})
 
 
 class FuncionarioViewSet(FiltraPorSedeMixin, viewsets.ReadOnlyModelViewSet):

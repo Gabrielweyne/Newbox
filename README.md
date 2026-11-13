@@ -158,6 +158,16 @@ Em `/`: conteúdo dos catálogos (diferenciais, soluções para empresas, facili
 - Cliente novo precisa de **WhatsApp** e **e-mail**; CPF é opcional. Clientes antigos sem
   esses dados aparecem com o aviso "Sem WhatsApp" / "Sem e-mail" para completar o cadastro.
 
+## Excluir cliente ao liberar o box
+
+- Na janela **Liberar box** há a opção **"Excluir o cliente da lista de clientes"** (só aparece se
+  ele não tiver outro box; avisa se ainda houver mensalidade atrasada).
+- O cliente **não é apagado do banco**: fica arquivado, some das listas, da escolha ao alugar e dos
+  comunicados, mas contratos, mensalidades e PDFs continuam guardados. Ele aparece em
+  **Clientes > Excluídos**, com o botão **Reativar**.
+- API: `POST /api/boxes/<id>/liberar/` com `{"excluir_cliente": true}`; `GET /api/clientes/?excluidos=true`;
+  `POST /api/clientes/<id>/reativar/`.
+
 ## Nota fiscal por e-mail
 
 - A nota fiscal (NFS-e) é **emitida fora do sistema** (prefeitura/contador). Em cada mensalidade,

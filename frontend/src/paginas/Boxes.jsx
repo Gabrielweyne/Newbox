@@ -384,6 +384,18 @@ export default function Boxes() {
   const [busca, setBusca] = useState("");
   const [janela, setJanela] = useState(null); // { tipo, box }
   const [recemAlugado, setRecemAlugado] = useState(null);
+  const [excluirCliente, setExcluirCliente] = useState(false);
+  const [infoCliente, setInfoCliente] = useState(null);
+  const [avisoLiberado, setAvisoLiberado] = useState("");
+
+  // Ao abrir "Liberar", busca se o cliente tem outros boxes e atrasos
+  useEffect(() => {
+    setExcluirCliente(false);
+    setInfoCliente(null);
+    if (janela?.tipo === "liberar" && janela.box.cliente) {
+      api(`/clientes/${janela.box.cliente}/`).then(setInfoCliente).catch(() => {});
+    }
+  }, [janela]);
   const status = params.get("status") || "todos";
   const sedeFiltro = params.get("sede") || "";
 
@@ -480,6 +492,12 @@ export default function Boxes() {
         </div>
 
         <Aviso>{erro}</Aviso>
+        {avisoLiberado && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            <span>✅ {avisoLiberado}</span>
+            <button onClick={() => setAvisoLiberado("")} className="text-xs text-emerald-900/70 hover:underline">Fechar</button>
+          </div>
+        )}
         {(() => {
           const b = recemAlugado && boxes?.find((x) => x.id === recemAlugado);
           if (!b?.contrato_ativo) return null;
@@ -605,16 +623,51 @@ export default function Boxes() {
       <Confirmar
         aberto={janela?.tipo === "liberar"}
         titulo={`Liberar box #${janela?.box?.id}?`}
-        textoBotao="Liberar box"
+        textoBotao={excluirCliente ? "Liberar e excluir cliente" : "Liberar box"}
         aoFechar={fechar}
         aoConfirmar={async () => {
-          await api(`/boxes/${janela.box.id}/liberar/`, { metodo: "POST" });
+          const r = await api(`/boxes/${janela.box.id}/liberar/`, {
+            metodo: "POST",
+            corpo: { excluir_cliente: excluirCliente },
+          });
+          setAvisoLiberado(
+            r.cliente_excluido
+              ? `Box #${r.id} liberado e ${janela.box.cliente_nome} excluído da lista de clientes. O histórico continua guardado.`
+              : `Box #${r.id} liberado.`
+          );
           carregar();
         }}
       >
         <p>
           O aluguel de <strong className="text-marinho">{janela?.box?.cliente_nome}</strong> será encerrado e o box ficará livre.
         </p>
+        {infoCliente &&
+          (infoCliente.total_boxes > 1 ? (
+            <p className="rounded-md bg-fundo px-3 py-2 text-xs">
+              {janela?.box?.cliente_nome} tem outro(s) box(es) alugado(s), então continua na lista de clientes.
+            </p>
+          ) : (
+            <label className="flex cursor-pointer gap-3 rounded-md bg-fundo px-3 py-3">
+              <input
+                type="checkbox"
+                checked={excluirCliente}
+                onChange={(e) => setExcluirCliente(e.target.checked)}
+                className="mt-0.5 size-4 shrink-0 accent-[#965ba5]"
+              />
+              <span>
+                <strong className="text-marinho">Excluir {janela?.box?.cliente_nome} da lista de clientes</strong>
+                <span className="block text-xs text-marinho-claro/70">
+                  Ele some das listas e dos comunicados. Contratos e pagamentos ficam guardados e dá para reativar depois em
+                  Clientes &gt; Excluídos.
+                </span>
+                {excluirCliente && infoCliente.atrasadas > 0 && (
+                  <span className="mt-1 block text-xs font-medium text-red-700">
+                    Atenção: este cliente ainda tem {infoCliente.atrasadas} mensalidade(s) atrasada(s).
+                  </span>
+                )}
+              </span>
+            </label>
+          ))}
       </Confirmar>
     </>
   );

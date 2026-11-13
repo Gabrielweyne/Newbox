@@ -1153,3 +1153,65 @@ class ComunicadosTests(APITestCase):
         self.assertEqual(r.data["resumo"]["email_falhos"], 2)
         r = self.client.post(f"/api/comunicados/{r.data['id']}/reenviar-emails/")
         self.assertEqual((r.data["resumo"]["email_falhos"], r.data["resumo"]["email_enviados"]), (0, 2))
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
+class ExcluirClienteAoLiberarTests(APITestCase):
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.ana = User.objects.create_user("52998224725")
+        Funcionario.objects.create(usuario=self.ana, nome="Ana", cpf="52998224725", sede=self.coco)
+        self.cliente = Cliente.objects.create(nome="Carlos", telefone="85998765432", email="c@exemplo.com",
+                                              cpf="24681357928")
+        self.client.force_authenticate(self.ana)
+        self.b1 = self.alugar_box()
+
+    def alugar_box(self):
+        box = Box.objects.create(sede=self.coco, tamanho="P1", valor=100)
+        r = self.client.patch(f"/api/boxes/{box.id}/", {
+            "cliente": self.cliente.id, "dia_vencimento": 10,
+            "anexo_pagamento": SimpleUploadedFile("c.pdf", b"%PDF", content_type="application/pdf"),
+        }, format="multipart")
+        self.assertEqual(r.status_code, 200, r.data)
+        return box
+
+    def nomes(self, url="/api/clientes/"):
+        return [c["nome"] for c in self.client.get(url).data["results"]]
+
+    def test_liberar_e_excluir_cliente(self):
+        r = self.client.post(f"/api/boxes/{self.b1.id}/liberar/", {"excluir_cliente": True}, format="json")
+        self.assertTrue(r.data["cliente_excluido"])
+        self.assertEqual(self.nomes(), [])
+        self.assertEqual(self.nomes("/api/clientes/?excluidos=true"), ["Carlos"])
+        # histórico continua acessível
+        ficha = self.client.get(f"/api/clientes/{self.cliente.id}/ficha/").data
+        self.assertEqual(len(ficha["contratos"]), 1)
+        self.assertFalse(ficha["cliente"]["ativo"])
+        # não recebe comunicado e não pode alugar sem reativar
+        box = Box.objects.create(sede=self.coco, tamanho="P2", valor=100)
+        r = self.client.patch(f"/api/boxes/{box.id}/", {"cliente": self.cliente.id, "dia_vencimento": 10})
+        self.assertIn("Reative", str(r.data["cliente"]))
+        r = self.client.post("/api/clientes/", {"nome": "Carlos 2", "telefone": "85911112222",
+                                                "email": "x@exemplo.com", "cpf": "246.813.579-28"})
+        self.assertIn("aba Excluídos", str(r.data["cpf"]))
+        # reativar
+        r = self.client.post(f"/api/clientes/{self.cliente.id}/reativar/")
+        self.assertTrue(r.data["ativo"])
+        self.assertEqual(self.nomes(), ["Carlos"])
+
+    def test_liberar_sem_excluir(self):
+        r = self.client.post(f"/api/boxes/{self.b1.id}/liberar/")
+        self.assertFalse(r.data["cliente_excluido"])
+        self.assertEqual(self.nomes(), ["Carlos"])
+
+    def test_nao_exclui_se_tem_outro_box(self):
+        self.alugar_box()
+        r = self.client.post(f"/api/boxes/{self.b1.id}/liberar/", {"excluir_cliente": True}, format="json")
+        self.assertFalse(r.data["cliente_excluido"])
+        self.assertEqual(self.nomes(), ["Carlos"])
+
+    def test_comunicado_ignora_excluidos(self):
+        self.client.post(f"/api/boxes/{self.b1.id}/liberar/", {"excluir_cliente": True}, format="json")
+        admin = User.objects.create_user("chefe", is_staff=True)
+        self.client.force_authenticate(admin)
+        self.assertEqual(self.client.get("/api/comunicados/previa/?publico=todos").data["total"], 0)

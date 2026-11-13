@@ -78,10 +78,14 @@ export default function Clientes() {
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState("");
   const [janela, setJanela] = useState(null);
+  const [aba, setAba] = useState("ativos");
 
   const carregar = useCallback(() => {
-    listarTudo("/clientes/").then(setClientes).catch((e) => setErro(e.message));
-  }, []);
+    setClientes(null);
+    listarTudo(`/clientes/${aba === "excluidos" ? "?excluidos=true" : ""}`)
+      .then(setClientes)
+      .catch((e) => setErro(e.message));
+  }, [aba]);
   useEffect(carregar, [carregar]);
 
   const visiveis = useMemo(() => {
@@ -105,6 +109,29 @@ export default function Clientes() {
       </Banner>
 
       <div className="mx-auto max-w-6xl px-4 py-8">
+        <div className="mb-4 flex flex-wrap gap-2" role="tablist">
+          {[
+            ["ativos", "Clientes"],
+            ["excluidos", "Excluídos"],
+          ].map(([v, r]) => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={aba === v}
+              onClick={() => setAba(v)}
+              className={`rounded-full px-4 py-1.5 text-sm transition ${
+                aba === v ? "bg-roxo text-white" : "bg-white text-marinho-claro ring-1 ring-roxo-100 hover:ring-roxo-300"
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+        {aba === "excluidos" && (
+          <p className="mb-4 text-sm text-marinho-claro/70">
+            Clientes excluídos ao liberar o box. O histórico continua guardado; reative se o cliente voltar.
+          </p>
+        )}
         <label className="relative mb-5 block sm:w-80">
           <span className="sr-only">Buscar cliente</span>
           <IconeBusca className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-marinho-claro/50" />
@@ -123,7 +150,11 @@ export default function Clientes() {
             <Carregando />
           ) : visiveis.length === 0 ? (
             <Vazio icone={IconePessoas} titulo="Nenhum cliente encontrado 🔍">
-              {clientes?.length ? "Tente outro nome." : "Cadastre clientes aqui ou direto ao alugar um box."}
+              {aba === "excluidos"
+                ? "Nenhum cliente excluído."
+                : clientes?.length
+                  ? "Tente outro nome."
+                  : "Cadastre clientes aqui ou direto ao alugar um box."}
             </Vazio>
           ) : (
             <ul className="divide-y divide-roxo-100">
@@ -143,10 +174,22 @@ export default function Clientes() {
                         {c.total_boxes === 0
                           ? "nenhum box alugado"
                           : `${c.total_boxes} box${c.total_boxes > 1 ? "es" : ""} alugado${c.total_boxes > 1 ? "s" : ""}`}
+                        {c.excluido_em && ` · excluído em ${new Date(c.excluido_em).toLocaleDateString("pt-BR")}`}
                       </p>
                     </div>
                   </div>
-                  <div className="flex shrink-0 gap-1">
+                  <div className="flex shrink-0 items-center gap-1">
+                    {!c.ativo && (
+                      <button
+                        onClick={async () => {
+                          await api(`/clientes/${c.id}/reativar/`, { metodo: "POST" }).catch((e) => setErro(e.message));
+                          carregar();
+                        }}
+                        className="mr-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-roxo ring-1 ring-roxo-200 hover:bg-roxo-50"
+                      >
+                        Reativar
+                      </button>
+                    )}
                     {c.telefone && (
                       <a
                         href={linkWhatsapp(c.telefone)}

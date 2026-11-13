@@ -87,6 +87,9 @@ class Cliente(models.Model):
     telefone = models.CharField("WhatsApp", max_length=11, blank=True, help_text="DDD + número, só dígitos.")
     cpf = models.CharField("CPF", max_length=11, blank=True, validators=[validar_cpf])
     email = models.EmailField("e-mail", blank=True)
+    # "Excluído" pelo site = arquivado: some das listas, mas o histórico fica guardado
+    ativo = models.BooleanField(default=True)
+    excluido_em = models.DateTimeField("excluído em", null=True, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:

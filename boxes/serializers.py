@@ -63,7 +63,8 @@ class ClienteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Cliente
-        fields = ["id", "nome", "telefone", "cpf", "email", "total_boxes", "atrasadas"]
+        fields = ["id", "nome", "telefone", "cpf", "email", "ativo", "excluido_em", "total_boxes", "atrasadas"]
+        read_only_fields = ["ativo", "excluido_em"]
         extra_kwargs = {
             "telefone": {
                 "max_length": 25, "required": True, "allow_blank": False,
@@ -100,7 +101,11 @@ class ClienteSerializer(serializers.ModelSerializer):
         existe = Cliente.objects.filter(cpf=cpf)
         if self.instance:
             existe = existe.exclude(pk=self.instance.pk)
-        if existe.exists():
+        if outro := existe.first():
+            if not outro.ativo:
+                raise serializers.ValidationError(
+                    f"Este CPF é de {outro.nome}, que está na aba Excluídos. Reative o cliente em vez de cadastrar de novo."
+                )
             raise serializers.ValidationError("Já existe cliente com este CPF.")
         return cpf
 
@@ -155,6 +160,10 @@ class BoxSerializer(serializers.ModelSerializer):
         if atual and atual.cliente_id and "cliente" in attrs and cliente is None:
             raise serializers.ValidationError(
                 {"cliente": "Para encerrar o aluguel use a opção Liberar."}
+            )
+        if cliente and not cliente.ativo and "cliente" in attrs:
+            raise serializers.ValidationError(
+                {"cliente": "Este cliente foi excluído. Reative-o em Clientes > Excluídos antes de alugar."}
             )
         if cliente and not dia:
             raise serializers.ValidationError(

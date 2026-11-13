@@ -17,7 +17,7 @@ def destinatarios(publico, sede_id=None):
     ativos: clientes com box alugado (na sede, se informada).
     todos: todos os clientes; com sede, os que já tiveram box/contrato lá.
     """
-    qs = Cliente.objects.all()
+    qs = Cliente.objects.filter(ativo=True)
     if publico == Comunicado.ATIVOS:
         filtro = Q(boxes__isnull=False)
         if sede_id:
