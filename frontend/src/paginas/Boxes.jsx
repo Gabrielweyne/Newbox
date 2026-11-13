@@ -10,7 +10,6 @@ import {
   IconeDestravar,
   IconeLapis,
   IconeLixo,
-  IconeMais,
   IconeChave,
   IconeHistorico,
 } from "../componentes/Icones";
@@ -428,11 +427,7 @@ export default function Boxes() {
 
   return (
     <>
-      <Banner titulo="Boxes" subtitulo={usuario.sede ? `Sede ${usuario.sede.nome}` : "Todas as sedes"}>
-        <Botao onClick={() => abrir("novo")}>
-          <IconeMais className="size-4" /> Novo box
-        </Botao>
-      </Banner>
+      <Banner titulo="Boxes" subtitulo={usuario.sede ? `Sede ${usuario.sede.nome}` : "Todas as sedes"} />
 
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -504,7 +499,7 @@ export default function Boxes() {
             <Carregando />
           ) : visiveis.length === 0 ? (
             <Vazio icone={IconeCaixa} titulo="Nenhum box encontrado">
-              {boxes?.length ? "Ajuste os filtros ou a busca." : "Cadastre o primeiro box em \"Novo box\"."}
+              {boxes?.length ? "Ajuste os filtros ou a busca." : "Nenhum box cadastrado nesta sede."}
             </Vazio>
           ) : (
             <>
@@ -579,7 +574,7 @@ export default function Boxes() {
         </Cartao>
       </div>
 
-      <Modal aberto={janela?.tipo === "novo" || janela?.tipo === "editar"} titulo={janela?.box ? `Editar box #${janela.box.id}` : "Novo box"} aoFechar={fechar}>
+      <Modal aberto={janela?.tipo === "editar"} titulo={`Editar box #${janela?.box?.id}`} aoFechar={fechar}>
         <FormBox
           box={janela?.box}
           sedes={sedes}

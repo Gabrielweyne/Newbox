@@ -33,23 +33,21 @@ class NewboxApiTests(APITestCase):
     def test_campos_obrigatorios(self):
         self.assertEqual(self.client.post("/api/sedes/", {"nome": "X"}).status_code, 400)
         self.assertEqual(self.client.post("/api/clientes/", {"nome": "  "}).status_code, 400)
-        r = self.client.post("/api/boxes/", {"sede": self.sede.id, "valor": "10"})
-        self.assertIn("tamanho", r.data)
+        box = Box.objects.create(sede=self.sede, tamanho="P", valor=10)
+        self.assertIn("tamanho", self.client.patch(f"/api/boxes/{box.id}/", {"tamanho": " "}).data)
 
     def test_box_alugado_exige_comprovante(self):
-        r = self.client.post("/api/boxes/", {
-            "sede": self.sede.id, "tamanho": "P", "valor": "10", "cliente": self.maria.id,
-            "dia_vencimento": 10,
-        })
+        box = Box.objects.create(sede=self.sede, tamanho="P", valor=10)
+        r = self.client.patch(f"/api/boxes/{box.id}/", {"cliente": self.maria.id, "dia_vencimento": 10})
         self.assertEqual(r.status_code, 400)
         self.assertIn("anexo_pagamento", r.data)
 
     def test_alugar_box_com_upload(self):
-        r = self.client.post("/api/boxes/", {
-            "sede": self.sede.id, "tamanho": "P", "valor": "10",
+        box = Box.objects.create(sede=self.sede, tamanho="P", valor=10)
+        r = self.client.patch(f"/api/boxes/{box.id}/", {
             "cliente": self.maria.id, "anexo_pagamento": self.comprovante(), "dia_vencimento": 15,
         }, format="multipart")
-        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.status_code, 200, r.data)
         self.assertTrue(r.data["alugado"])
         r = self.client.get(f"/api/boxes/?cliente={self.maria.id}")
         self.assertEqual(r.data["count"], 1)
@@ -179,14 +177,13 @@ class AcessoPorSedeTests(APITestCase):
         self.assertEqual(self.client.delete(url).status_code, 404)
         self.assertEqual(self.client.get(f"/api/sedes/{self.cambeba.id}/").status_code, 404)
 
-    def test_funcionario_cria_box_na_propria_sede(self):
-        self.client.force_authenticate(self.ana)
-        r = self.client.post("/api/boxes/", {"tamanho": "M", "valor": "200"})
-        self.assertEqual(r.status_code, 201, r.data)
-        self.assertEqual(r.data["sede"], self.coco.id)
-        r = self.client.post("/api/boxes/", {"sede": self.cambeba.id, "tamanho": "M", "valor": "200"})
-        self.assertEqual(r.status_code, 400)
-        self.assertIn("sede", r.data)
+    def test_ninguem_cria_box_pelo_site(self):
+        # Boxes já existem; são cadastrados direto no banco, não pelo site
+        for usuario in (self.ana, User.objects.create_user("chefe2", is_staff=True)):
+            self.client.force_authenticate(usuario)
+            r = self.client.post("/api/boxes/", {"sede": self.coco.id, "tamanho": "M", "valor": "200"})
+            self.assertEqual(r.status_code, 405)
+        self.assertEqual(Box.objects.count(), 2)
 
     def test_funcionario_nao_move_box_para_outra_sede(self):
         self.client.force_authenticate(self.ana)
@@ -218,8 +215,6 @@ class AcessoPorSedeTests(APITestCase):
         self.client.force_authenticate(User.objects.create_user("chefe", is_staff=True))
         self.assertEqual(self.ids("/api/boxes/"), sorted([self.box_coco.id, self.box_cambeba.id]))
         self.assertEqual(len(self.ids("/api/sedes/")), 2)
-        r = self.client.post("/api/boxes/", {"tamanho": "M", "valor": "1"})
-        self.assertIn("sede", r.data)  # admin precisa informar a sede
 
     def test_usuario_sem_vinculo_nao_acessa(self):
         self.client.force_authenticate(User.objects.create_user("qualquer"))
@@ -761,7 +756,7 @@ class ListaDeEsperaTests(APITestCase):
     def test_box_novo_tamanho_parecido_e_qualquer_sede(self):
         self.anotar(sede="", tamanho="4X4m")
         self.client.force_authenticate(self.beto)
-        self.client.post("/api/boxes/", {"tamanho": "4x4 m", "valor": "650"})
+        Box.objects.create(sede=self.cambeba, tamanho="4x4 m", valor=650)
         r = self.client.get("/api/interessados/oportunidades/")
         self.assertEqual([i["nome"] for i in r.data], ["Paula"])
         self.assertEqual(r.data[0]["vagas"][0]["sede_nome"], "Cambeba")
@@ -956,23 +951,23 @@ class CatalogoTests(APITestCase):
 
     def test_box_pelo_catalogo(self):
         g4 = self.coco.tipos.get(codigo="G4")
-        r = self.client.post("/api/boxes/", {"tipo": g4.id})
-        self.assertEqual(r.status_code, 201, r.data)
-        self.assertEqual((r.data["tamanho"], r.data["valor"]), ("G4", "1537.00"))
+        box = Box.objects.create(sede=self.coco, tamanho="antigo", valor=1)
+        r = self.client.patch(f"/api/boxes/{box.id}/", {"tipo": g4.id})
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data["tamanho"], "G4")
         self.assertEqual(r.data["tipo_detalhe"]["dimensoes"], "5,5 x 3,7 x 2,9 m")
-        # valor diferente do catálogo (negociado) é aceito
-        r = self.client.post("/api/boxes/", {"tipo": g4.id, "valor": "1400"})
+        r = self.client.patch(f"/api/boxes/{box.id}/", {"valor": "1400"})
         self.assertEqual(r.data["valor"], "1400.00")
 
     def test_tipo_de_outra_unidade_e_campos_obrigatorios(self):
         p1_camb = self.cambeba.tipos.get(codigo="P1")
-        self.assertIn("tipo", self.client.post("/api/boxes/", {"tipo": p1_camb.id}).data)
-        r = self.client.post("/api/boxes/", {})
-        self.assertIn("tamanho", r.data)
+        box = Box.objects.create(sede=self.coco, tamanho="P1", valor=1)
+        self.assertIn("tipo", self.client.patch(f"/api/boxes/{box.id}/", {"tipo": p1_camb.id}).data)
 
     def test_box_sem_catalogo_continua_funcionando(self):
-        r = self.client.post("/api/boxes/", {"tamanho": "Especial", "valor": "100"})
-        self.assertEqual(r.status_code, 201, r.data)
+        box = Box.objects.create(sede=self.coco, tamanho="P1", valor=1, tipo=self.coco.tipos.get(codigo="P1"))
+        r = self.client.patch(f"/api/boxes/{box.id}/", {"tipo": None, "tamanho": "Especial"}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
         self.assertIsNone(r.data["tipo"])
 
     def test_catalogo_leitura_para_todos_edicao_so_admin(self):

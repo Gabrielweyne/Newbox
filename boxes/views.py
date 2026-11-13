@@ -123,6 +123,14 @@ class BoxViewSet(FiltraPorSedeMixin, ProtegidoContraExclusaoMixin, viewsets.Mode
     serializer_class = BoxSerializer
     mensagem_protegido = "Este box tem histórico de contratos e não pode ser excluído."
 
+    def create(self, request, *args, **kwargs):
+        # Os boxes já existem fisicamente: são cadastrados de uma vez direto no
+        # banco (ou pelo /admin/), nunca pelo site.
+        return Response(
+            {"detail": "Não é possível criar boxes pelo sistema."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
     def get_queryset(self):
         atrasada = Mensalidade.objects.filter(
             box=OuterRef("pk"), pago_em__isnull=True, vencimento__lt=cobranca.hoje()
