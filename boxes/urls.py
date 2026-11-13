@@ -9,6 +9,7 @@ from .senha import EsqueciSenhaView, RedefinirSenhaView
 from .views import (
     BoxViewSet,
     ClienteViewSet,
+    ComunicadoViewSet,
     ContratoViewSet,
     DisponibilidadeView,
     FuncionarioViewSet,
@@ -26,6 +27,7 @@ router.register("mensalidades", MensalidadeViewSet, basename="mensalidade")
 router.register("interessados", InteressadoViewSet, basename="interessado")
 router.register("contratos", ContratoViewSet, basename="contrato")
 router.register("tipos", TipoBoxViewSet, basename="tipo")
+router.register("comunicados", ComunicadoViewSet, basename="comunicado")
 router.register("funcionarios", FuncionarioViewSet, basename="funcionario")
 
 urlpatterns = [

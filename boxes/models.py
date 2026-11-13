@@ -379,3 +379,64 @@ class Contrato(models.Model):
 
     def __str__(self):
         return f"Contrato {self.numero} - {self.cliente} (box {self.box_id})"
+
+
+class Comunicado(models.Model):
+    """Mensagem enviada a vários clientes de uma vez (feriados, avisos...)."""
+
+    ATIVOS = "ativos"
+    TODOS = "todos"
+    PUBLICOS = [(ATIVOS, "Clientes com box alugado"), (TODOS, "Todos os clientes")]
+
+    titulo = models.CharField("título", max_length=120)
+    mensagem = models.TextField(help_text="Use {nome} para o primeiro nome do cliente.")
+    publico = models.CharField("público", max_length=10, choices=PUBLICOS, default=ATIVOS)
+    sede = models.ForeignKey(
+        Sede, on_delete=models.SET_NULL, null=True, blank=True, related_name="comunicados",
+        help_text="Vazio = as duas unidades.",
+    )
+    por_email = models.BooleanField("enviar por e-mail", default=True)
+    por_whatsapp = models.BooleanField("enviar por WhatsApp", default=True)
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-criado_em"]
+        constraints = [
+            models.CheckConstraint(condition=~Q(titulo__regex=r"^\s*$"), name="comunicado_titulo_preenchido"),
+            models.CheckConstraint(condition=~Q(mensagem__regex=r"^\s*$"), name="comunicado_mensagem_preenchida"),
+            models.CheckConstraint(condition=Q(por_email=True) | Q(por_whatsapp=True), name="comunicado_algum_canal"),
+        ]
+
+    def texto_para(self, cliente):
+        primeiro = (cliente.nome or "").strip().split(" ")[0]
+        return self.mensagem.replace("{nome}", primeiro)
+
+    def __str__(self):
+        return self.titulo
+
+
+class EnvioComunicado(models.Model):
+    """Situação do comunicado para cada cliente (e-mail e WhatsApp)."""
+
+    PENDENTE, ENVIADO, FALHOU, SEM_CONTATO, NAO_SE_APLICA = "pendente", "enviado", "falhou", "sem_contato", "nao_se_aplica"
+    SITUACOES = [
+        (PENDENTE, "Pendente"), (ENVIADO, "Enviado"), (FALHOU, "Falhou"),
+        (SEM_CONTATO, "Sem contato"), (NAO_SE_APLICA, "Não se aplica"),
+    ]
+
+    comunicado = models.ForeignKey(Comunicado, on_delete=models.CASCADE, related_name="envios")
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name="comunicados")
+    email = models.EmailField(blank=True)
+    telefone = models.CharField(max_length=11, blank=True)
+    email_situacao = models.CharField(max_length=14, choices=SITUACOES, default=NAO_SE_APLICA)
+    whatsapp_situacao = models.CharField(max_length=14, choices=SITUACOES, default=NAO_SE_APLICA)
+    whatsapp_enviado_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["cliente__nome"]
+        constraints = [
+            models.UniqueConstraint(fields=["comunicado", "cliente"], name="envio_unico_por_cliente"),
+        ]

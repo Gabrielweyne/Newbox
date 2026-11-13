@@ -1060,3 +1060,93 @@ class NotaFiscalTests(APITestCase):
         Funcionario.objects.create(usuario=beto, nome="Beto", cpf="11144477735", sede=Sede.objects.get(nome="Cambeba"))
         self.client.force_authenticate(beto)
         self.assertEqual(self.client.post(self.url, {"arquivo": self.pdf()}, format="multipart").status_code, 404)
+
+
+from .models import Comunicado, EnvioComunicado  # noqa: E402
+
+
+class ComunicadosTests(APITestCase):
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.cambeba = Sede.objects.get(nome="Cambeba")
+        self.ana = User.objects.create_user("52998224725")
+        Funcionario.objects.create(usuario=self.ana, nome="Ana", cpf="52998224725", sede=self.coco)
+        self.admin = User.objects.create_user("chefe", is_staff=True)
+
+        def cliente(nome, sede=None, email=True, tel=True):
+            c = Cliente.objects.create(nome=nome, email=f"{nome.lower()}@exemplo.com" if email else "",
+                                       telefone="85998765432" if tel else "")
+            if sede:
+                Box.objects.create(sede=sede, tamanho="P1", valor=1, cliente=c, anexo_pagamento="c/x.pdf",
+                                   dia_vencimento=5, alugado_em=date(2026, 11, 1))
+            return c
+
+        self.carlos = cliente("Carlos", self.coco)
+        self.maria = cliente("Maria", self.coco, email=False)
+        self.joao = cliente("Joao", self.cambeba, tel=False)
+        self.antigo = cliente("Antigo")  # sem box
+
+    def criar(self, **dados):
+        base = {"titulo": "Feriado", "mensagem": "Olá, {nome}! Fecharemos no feriado.", "publico": "ativos"}
+        return self.client.post("/api/comunicados/", {**base, **dados}, format="json")
+
+    def test_previa(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.get("/api/comunicados/previa/?publico=ativos").data,
+                         {"total": 3, "com_email": 2, "com_whatsapp": 2})
+        self.assertEqual(self.client.get("/api/comunicados/previa/?publico=todos").data["total"], 4)
+        self.assertEqual(self.client.get(f"/api/comunicados/previa/?publico=ativos&sede={self.cambeba.id}").data["total"], 1)
+        # funcionário: sempre a própria unidade
+        self.client.force_authenticate(self.ana)
+        self.assertEqual(self.client.get(f"/api/comunicados/previa/?sede={self.cambeba.id}").data["total"], 2)
+
+    def test_admin_envia_para_todos_os_ativos(self):
+        self.client.force_authenticate(self.admin)
+        r = self.criar()
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data["resumo"], {
+            "total": 3, "email_enviados": 2, "email_falhos": 0, "sem_email": 1,
+            "whatsapp_enviados": 0, "whatsapp_pendentes": 2, "sem_whatsapp": 1,
+        })
+        self.assertEqual(sorted(e.to[0] for e in mail.outbox), ["carlos@exemplo.com", "joao@exemplo.com"])
+        self.assertIn("Olá, Carlos! Fecharemos no feriado.", next(e for e in mail.outbox if e.to == ["carlos@exemplo.com"]).body)
+        self.assertEqual(mail.outbox[0].subject, "Newbox - Feriado")
+
+    def test_funcionario_so_envia_para_a_propria_unidade(self):
+        self.client.force_authenticate(self.ana)
+        self.assertIn("sede", self.criar(sede=self.cambeba.id).data)
+        r = self.criar()
+        self.assertEqual(r.data["sede"], self.coco.id)
+        self.assertEqual(r.data["resumo"]["total"], 2)
+        self.assertEqual([e.to for e in mail.outbox], [["carlos@exemplo.com"]])
+        # não vê comunicados da outra unidade
+        self.client.force_authenticate(self.admin)
+        self.criar(sede=self.cambeba.id)
+        self.client.force_authenticate(self.ana)
+        self.assertEqual(self.client.get("/api/comunicados/").data["count"], 1)
+
+    def test_whatsapp_marcar_enviado(self):
+        self.client.force_authenticate(self.admin)
+        cid = self.criar(por_email=False).data["id"]
+        self.assertEqual(len(mail.outbox), 0)
+        envios = self.client.get(f"/api/comunicados/{cid}/envios/").data
+        carlos = next(e for e in envios if e["cliente_nome"] == "Carlos")
+        self.assertEqual(carlos["texto"], "Olá, Carlos! Fecharemos no feriado.")
+        self.assertEqual(carlos["email_situacao"], "nao_se_aplica")
+        r = self.client.post(f"/api/comunicados/{cid}/envios/{carlos['id']}/whatsapp/")
+        self.assertEqual(r.data["whatsapp_situacao"], "enviado")
+        r = self.client.post(f"/api/comunicados/{cid}/envios/{carlos['id']}/whatsapp/", {"enviado": False}, format="json")
+        self.assertEqual(r.data["whatsapp_situacao"], "pendente")
+
+    def test_precisa_de_um_canal_e_texto(self):
+        self.client.force_authenticate(self.admin)
+        self.assertIn("por_email", self.criar(por_email=False, por_whatsapp=False).data)
+        self.assertIn("mensagem", self.criar(mensagem="").data)
+
+    def test_falha_de_email_e_reenvio(self):
+        self.client.force_authenticate(self.admin)
+        with mock.patch("boxes.comunicados.EmailMultiAlternatives.send", side_effect=OSError("smtp")):
+            r = self.criar()
+        self.assertEqual(r.data["resumo"]["email_falhos"], 2)
+        r = self.client.post(f"/api/comunicados/{r.data['id']}/reenviar-emails/")
+        self.assertEqual((r.data["resumo"]["email_falhos"], r.data["resumo"]["email_enviados"]), (0, 2))

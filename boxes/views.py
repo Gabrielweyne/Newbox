@@ -8,15 +8,28 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import cobranca, espera
+from . import cobranca, comunicados, espera
 from .notas import enviar_nota_fiscal
 from .contrato_pdf import gerar_pdf_contrato
-from .models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede, TipoBox
+from .models import (
+    Box,
+    Cliente,
+    Comunicado,
+    Contrato,
+    EnvioComunicado,
+    Funcionario,
+    Interessado,
+    Mensalidade,
+    Sede,
+    TipoBox,
+)
 from .permissions import EhAdminOuFuncionario, SomenteAdminAltera, sede_do_usuario
 from .serializers import (
     BoxSerializer,
     ClienteSerializer,
+    ComunicadoSerializer,
     ContratoSerializer,
+    EnvioComunicadoSerializer,
     FuncionarioSerializer,
     InteressadoSerializer,
     MensalidadeSerializer,
@@ -437,3 +450,54 @@ class TipoBoxViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
         if sede := self.request.query_params.get("sede"):
             qs = qs.filter(sede_id=sede)
         return qs
+
+
+class ComunicadoViewSet(viewsets.mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
+    """
+    Comunicados para vários clientes (e-mail automático + lista para o WhatsApp).
+    Funcionário: só da própria unidade. Admin: qualquer público.
+
+    GET  /api/comunicados/previa/?publico=ativos|todos&sede=<id> -> quantos recebem
+    GET  /api/comunicados/<id>/envios/                            -> situação por cliente
+    POST /api/comunicados/<id>/envios/<envio>/whatsapp/           -> marca WhatsApp enviado
+    POST /api/comunicados/<id>/reenviar-emails/                   -> tenta de novo os que falharam
+    """
+
+    serializer_class = ComunicadoSerializer
+
+    def get_queryset(self):
+        qs = Comunicado.objects.select_related("sede", "criado_por__funcionario")
+        sede = sede_do_usuario(self.request.user)
+        return qs if sede is None else qs.filter(sede_id=sede)
+
+    def perform_create(self, serializer):
+        comunicado = serializer.save(criado_por=self.request.user)
+        comunicados.disparar(comunicado)
+
+    @action(detail=False, methods=["get"])
+    def previa(self, request):
+        publico = request.query_params.get("publico", Comunicado.ATIVOS)
+        sede = sede_do_usuario(request.user) or request.query_params.get("sede") or None
+        return Response(comunicados.resumo_destinatarios(publico, sede))
+
+    @action(detail=True, methods=["get"])
+    def envios(self, request, pk=None):
+        envios = self.get_object().envios.select_related("cliente", "comunicado")
+        return Response(EnvioComunicadoSerializer(envios, many=True).data)
+
+    @action(detail=True, methods=["post"], url_path=r"envios/(?P<envio_id>[0-9]+)/whatsapp")
+    def whatsapp(self, request, pk=None, envio_id=None):
+        envio = self.get_object().envios.filter(pk=envio_id).first()
+        if not envio:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        enviado = request.data.get("enviado", True) not in (False, "false", "0")
+        envio.whatsapp_situacao = EnvioComunicado.ENVIADO if enviado else EnvioComunicado.PENDENTE
+        envio.whatsapp_enviado_em = timezone.now() if enviado else None
+        envio.save(update_fields=["whatsapp_situacao", "whatsapp_enviado_em"])
+        return Response(EnvioComunicadoSerializer(envio).data)
+
+    @action(detail=True, methods=["post"], url_path="reenviar-emails")
+    def reenviar_emails(self, request, pk=None):
+        comunicado = self.get_object()
+        comunicados.enviar_emails(comunicado)
+        return Response(self.get_serializer(comunicado).data)

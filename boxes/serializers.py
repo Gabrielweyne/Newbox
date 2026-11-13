@@ -1,7 +1,18 @@
 from rest_framework import serializers
 
 from . import cobranca
-from .models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede, TipoBox
+from .models import (
+    Box,
+    Cliente,
+    Comunicado,
+    Contrato,
+    EnvioComunicado,
+    Funcionario,
+    Interessado,
+    Mensalidade,
+    Sede,
+    TipoBox,
+)
 from .permissions import sede_do_usuario
 from .validators import somente_digitos
 
@@ -375,3 +386,67 @@ class NotaFiscalSerializer(serializers.Serializer):
         if arquivo.size > 10 * 1024 * 1024:
             raise serializers.ValidationError("Arquivo muito grande (máximo 10 MB).")
         return arquivo
+
+
+class ComunicadoSerializer(serializers.ModelSerializer):
+    sede_nome = serializers.CharField(source="sede.nome", read_only=True, default=None)
+    criado_por_nome = serializers.SerializerMethodField()
+    resumo = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comunicado
+        fields = [
+            "id", "titulo", "mensagem", "publico", "sede", "sede_nome", "por_email", "por_whatsapp",
+            "criado_em", "criado_por_nome", "resumo",
+        ]
+        read_only_fields = ["criado_em"]
+
+    def validate(self, attrs):
+        if not attrs.get("por_email", True) and not attrs.get("por_whatsapp", True):
+            raise serializers.ValidationError({"por_email": "Escolha pelo menos um canal."})
+        request = self.context.get("request")
+        minha = sede_do_usuario(request.user) if request else None
+        if minha is not None:
+            # Funcionário só envia para clientes da própria unidade
+            if attrs.get("sede") and attrs["sede"].pk != minha:
+                raise serializers.ValidationError({"sede": "Você só pode enviar para clientes da sua unidade."})
+            attrs["sede"] = Sede.objects.get(pk=minha)
+        return attrs
+
+    def get_criado_por_nome(self, obj):
+        u = obj.criado_por
+        if not u:
+            return None
+        f = getattr(u, "funcionario", None)
+        return f.nome if f else "Administrador"
+
+    def get_resumo(self, obj):
+        contagem = {}
+        for email, zap in obj.envios.values_list("email_situacao", "whatsapp_situacao"):
+            contagem[("email", email)] = contagem.get(("email", email), 0) + 1
+            contagem[("whatsapp", zap)] = contagem.get(("whatsapp", zap), 0) + 1
+        c = lambda canal, sit: contagem.get((canal, sit), 0)  # noqa: E731
+        return {
+            "total": obj.envios.count(),
+            "email_enviados": c("email", "enviado"),
+            "email_falhos": c("email", "falhou"),
+            "sem_email": c("email", "sem_contato"),
+            "whatsapp_enviados": c("whatsapp", "enviado"),
+            "whatsapp_pendentes": c("whatsapp", "pendente"),
+            "sem_whatsapp": c("whatsapp", "sem_contato"),
+        }
+
+
+class EnvioComunicadoSerializer(serializers.ModelSerializer):
+    cliente_nome = serializers.CharField(source="cliente.nome", read_only=True)
+    texto = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EnvioComunicado
+        fields = [
+            "id", "cliente", "cliente_nome", "email", "telefone", "email_situacao",
+            "whatsapp_situacao", "whatsapp_enviado_em", "texto",
+        ]
+
+    def get_texto(self, obj):
+        return obj.comunicado.texto_para(obj.cliente)
