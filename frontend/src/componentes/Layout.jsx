@@ -1,11 +1,23 @@
-import { useState } from "react";
-import { Link, NavLink, Outlet } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 import logo from "../assets/logo.png";
 import logoBranco from "../assets/logo-branco.png";
 import { useAuth } from "../auth";
 import { AvisosProvider, useAvisos } from "../avisos";
 import { primeiroNome } from "../formato";
-import { IconeCaixa, IconeCalendario, IconeCasa, IconeCracha, IconeEspera, IconeMenu, IconePessoas, IconeSair, IconeX } from "./Icones";
+import {
+  IconeCaixa,
+  IconeCalendario,
+  IconeCasa,
+  IconeCracha,
+  IconeEspera,
+  IconeMegafone,
+  IconeMenu,
+  IconePessoas,
+  IconeSair,
+  IconeSetaDir,
+  IconeX,
+} from "./Icones";
 import Sino from "./Sino";
 
 function linksDo(usuario) {
@@ -15,9 +27,11 @@ function linksDo(usuario) {
     { para: "/mensalidades", rotulo: "Mensalidades", icone: IconeCalendario },
     { para: "/clientes", rotulo: "Clientes", icone: IconePessoas },
     { para: "/espera", rotulo: "Lista de espera", icone: IconeEspera },
-    { para: "/tamanhos", rotulo: "Tamanhos", icone: IconeCaixa },
+    { para: "/comunicados", rotulo: "Comunicados", icone: IconeMegafone },
+    // "mais": ficam no menu "Mais" no computador
+    { para: "/tamanhos", rotulo: "Tamanhos e preços", icone: IconeCaixa, mais: true },
   ];
-  if (usuario.admin) links.push({ para: "/funcionarios", rotulo: "Funcionários", icone: IconeCracha });
+  if (usuario.admin) links.push({ para: "/funcionarios", rotulo: "Funcionários", icone: IconeCracha, mais: true });
   return links;
 }
 
@@ -26,6 +40,43 @@ export default function Layout() {
     <AvisosProvider>
       <Estrutura />
     </AvisosProvider>
+  );
+}
+
+/** Menu "Mais" do computador (itens usados com menos frequência). */
+function MenuMais({ links, classeLink }) {
+  const [aberto, setAberto] = useState(false);
+  const local = useLocation();
+  const ativo = links.some((l) => local.pathname.startsWith(l.para));
+  useEffect(() => setAberto(false), [local.pathname]);
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = (e) => !e.target.closest?.("[data-menu-mais]") && setAberto(false);
+    document.addEventListener("mousedown", fechar);
+    return () => document.removeEventListener("mousedown", fechar);
+  }, [aberto]);
+  if (!links.length) return null;
+  return (
+    <div className="relative" data-menu-mais>
+      <button
+        onClick={() => setAberto((v) => !v)}
+        aria-expanded={aberto}
+        className={`flex items-center gap-1 rounded-md px-2.5 py-2 tracking-wide transition-colors ${
+          ativo ? "text-roxo" : "text-marinho-claro hover:text-roxo"
+        }`}
+      >
+        Mais <IconeSetaDir className={`size-4 transition ${aberto ? "-rotate-90" : "rotate-90"}`} />
+      </button>
+      {aberto && (
+        <div className="absolute right-0 z-30 mt-2 w-56 rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-roxo-100">
+          {links.map((l) => (
+            <NavLink key={l.para} to={l.para} className={classeLink}>
+              <l.icone /> {l.rotulo}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -70,11 +121,12 @@ function Estrutura() {
           </NavLink>
 
           <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Principal">
-            {links.map((l) => (
+            {links.filter((l) => !l.mais).map((l) => (
               <NavLink key={l.para} to={l.para} end={l.fim} className={classeLink}>
                 {l.rotulo}
               </NavLink>
             ))}
+            <MenuMais links={links.filter((l) => l.mais)} classeLink={classeLink} />
           </nav>
 
           <div className="ml-auto flex items-center gap-1 xl:ml-0 xl:hidden">

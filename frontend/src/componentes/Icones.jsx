@@ -183,3 +183,8 @@ export const IconeHistorico = (p) => (
     <path d="M4 4v4.5h4.5M12 8v4l3 2" />
   </Svg>
 );
+export const IconeMegafone = (p) => (
+  <Svg {...p}>
+    <path d="M3 10v4h3l9 5V5L6 10H3ZM18 9a4 4 0 0 1 0 6M6 14l1.5 5h3L9 15" />
+  </Svg>
+);

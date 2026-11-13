@@ -6,6 +6,7 @@ import Boxes from "./paginas/Boxes";
 import Cadastro from "./paginas/Cadastro";
 import Catalogo from "./paginas/Catalogo";
 import Clientes from "./paginas/Clientes";
+import Comunicados from "./paginas/Comunicados";
 import EsqueciSenha from "./paginas/EsqueciSenha";
 import FichaCliente from "./paginas/FichaCliente";
 import Funcionarios from "./paginas/Funcionarios";
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="mensalidades" element={<Mensalidades />} />
         <Route path="espera" element={<ListaEspera />} />
         <Route path="tamanhos" element={<Catalogo />} />
+        <Route path="comunicados" element={<Comunicados />} />
         <Route path="funcionarios" element={<Protegida soAdmin><Funcionarios /></Protegida>} />
         <Route path="*" element={<NaoEncontrada />} />
       </Route>

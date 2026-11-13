@@ -185,6 +185,18 @@ Em `/`: conteúdo dos catálogos (diferenciais, soluções para empresas, facili
   `boxes/templates/contrato/clausulas.txt` (não precisa mexer no código). Dados da empresa no
   `.env`: `NEWBOX_RAZAO_SOCIAL`, `NEWBOX_CNPJ`, `NEWBOX_CIDADE`.
 
+## Comunicados (feriados, avisos)
+
+- Tela **Comunicados**: título + mensagem (com `{nome}` para personalizar) e modelos prontos
+  (feriado, horário especial, aviso geral).
+- Público: clientes com box alugado ou todos os clientes; Sede, Cocó ou as duas. Funcionário só
+  envia para a própria unidade; antes de enviar o sistema mostra quantos vão receber.
+- **E-mail**: sai automaticamente, um por cliente (ninguém vê o endereço dos outros). Falhas
+  podem ser reenviadas.
+- **WhatsApp**: o WhatsApp comum não permite envio em massa; o sistema gera a lista de clientes
+  com o botão **Enviar** (abre a conversa com a mensagem pronta) e marca quem já recebeu. Envio
+  100% automático exige a API do WhatsApp Business (Meta), que pode ser integrada depois.
+
 ## Lista de espera e vagas nas duas sedes
 
 - Quando um cliente chamar e não houver box livre, o funcionário anota em **Lista de espera**
@@ -252,6 +264,7 @@ Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 | `/api/disponibilidade/` | Boxes livres por sede e tamanho, com valor mínimo (sem dados de clientes) |
 | `/api/contratos/` | Contratos (somente leitura). `?cliente=`, `?box=`, `?ativo=true\|false`. `GET .../<id>/pdf/` baixa o PDF |
 | `/api/tipos/`     | Catálogo de tamanhos. `?sede=`. Leitura para todos; criar/editar/excluir só admin |
+| `/api/comunicados/` | Comunicados (listar/criar). `GET .../previa/?publico=&sede=`, `GET .../<id>/envios/`, `POST .../<id>/envios/<envio>/whatsapp/`, `POST .../<id>/reenviar-emails/` |
 | `/api/publico/`   | **Aberto.** Sedes, endereços, tamanhos de box e se há algum livre, mais os contatos (sem clientes, valores ou quantidades) |
 | `/admin/`         | Painel administrativo do Django                                           |
 
