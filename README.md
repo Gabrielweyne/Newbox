@@ -135,9 +135,10 @@ só numérica ou parecida com o nome/CPF).
 - Cada unidade tem seu catálogo (tela **Tamanhos**): código (P1, M1 SUP, G4...), dimensões,
   área, volume, sugestão de uso e valor mensal. Carregado dos catálogos em PDF da Newbox Sede
   (Cambeba) e da Newbox Cocó.
-- **Boxes não são criados pelo site** (eles já existem fisicamente): a carga inicial é feita de
-  uma vez direto no banco ou pelo `/admin/`. No site, o box pode ser editado (tamanho do catálogo,
-  valor), alugado e liberado. A API responde 405 a `POST /api/boxes/`.
+- **Boxes não são criados nem excluídos pelo site** (eles já existem fisicamente): a carga
+  inicial é feita de uma vez direto no banco ou pelo `/admin/`. No site, o box pode ser editado
+  (tamanho do catálogo, valor), alugado e liberado. A API responde 405 a `POST` e `DELETE` em
+  `/api/boxes/`.
 - Só o administrador altera o catálogo; a mudança vale na hora para a página pública e para os
   próximos boxes (boxes já cadastrados mantêm o valor deles).
 - Cada unidade tem nome público ("Newbox Sede (Cambeba)", "Newbox Cocó") e o **próprio WhatsApp**
@@ -256,7 +257,7 @@ Todos os endpoints abaixo exigem login, exceto os indicados como abertos.
 |-------------------|---------------------------------------------------------------------------|
 | `/api/sedes/`     | CRUD de sedes. Inclui `numero_de_box`, `alugados`, `nao_alugados` (calculados) |
 | `/api/clientes/`  | CRUD de clientes. Busca por nome, WhatsApp ou CPF: `?busca=`. `GET .../<id>/ficha/` (boxes e mensalidades do cliente) |
-| `/api/boxes/`     | Consultar, editar e excluir boxes (criar não é permitido). Filtros: `?sede=`, `?cliente=`, `?alugado=true\|false`. `POST /api/boxes/<id>/liberar/` encerra o aluguel |
+| `/api/boxes/`     | Consultar e editar boxes (criar e excluir não são permitidos). Filtros: `?sede=`, `?cliente=`, `?alugado=true\|false`. `POST /api/boxes/<id>/liberar/` encerra o aluguel |
 | `/api/funcionarios/` | Consulta de funcionários. Filtros: `?sede=`, `?aprovado=true\|false`. Admin: `POST .../<id>/aprovar/` e `.../<id>/bloquear/` |
 | `/api/funcionarios/sedes/` | Aberto: lista as sedes para o formulário de cadastro |
 | `/api/mensalidades/` | Mensalidades. Filtros: `?competencia=AAAA-MM`, `?situacao=paga\|pendente\|atrasada\|vence_hoje\|a_vencer`, `?box=`, `?sede=`. `GET .../avisos/` (vencem hoje + atrasadas), `POST .../<id>/pagar/` (comprovante, pago_em), `POST .../<id>/desfazer/` |

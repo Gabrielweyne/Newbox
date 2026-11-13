@@ -9,7 +9,6 @@ import {
   IconeClipe,
   IconeDestravar,
   IconeLapis,
-  IconeLixo,
   IconeChave,
   IconeHistorico,
 } from "../componentes/Icones";
@@ -371,13 +370,6 @@ function Acoes({ box, abrir }) {
       <button onClick={() => abrir("editar", box)} className={`${btn} text-marinho-claro hover:bg-roxo-50`} aria-label={`Editar box ${box.id}`}>
         <IconeLapis className="size-4" />
       </button>
-      {box.alugado ? (
-        <span className="w-[34px]" aria-hidden />
-      ) : (
-        <button onClick={() => abrir("excluir", box)} className={`${btn} text-red-700 hover:bg-red-50`} aria-label={`Excluir box ${box.id}`}>
-          <IconeLixo className="size-4" />
-        </button>
-      )}
     </div>
   );
 }
@@ -623,19 +615,6 @@ export default function Boxes() {
         <p>
           O aluguel de <strong className="text-marinho">{janela?.box?.cliente_nome}</strong> será encerrado e o box ficará livre.
         </p>
-      </Confirmar>
-      <Confirmar
-        aberto={janela?.tipo === "excluir"}
-        titulo={`Excluir box #${janela?.box?.id}?`}
-        textoBotao="Excluir"
-        variante="perigo"
-        aoFechar={fechar}
-        aoConfirmar={async () => {
-          await api(`/boxes/${janela.box.id}/`, { metodo: "DELETE" });
-          carregar();
-        }}
-      >
-        <p>Essa ação não pode ser desfeita.</p>
       </Confirmar>
     </>
   );

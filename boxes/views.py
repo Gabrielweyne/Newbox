@@ -129,7 +129,7 @@ class ClienteViewSet(ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
         })
 
 
-class BoxViewSet(FiltraPorSedeMixin, ProtegidoContraExclusaoMixin, viewsets.ModelViewSet):
+class BoxViewSet(FiltraPorSedeMixin, viewsets.ModelViewSet):
     """
     Funcionário só vê e altera boxes da própria sede.
     Filtros opcionais: ?sede=<id>, ?cliente=<id>, ?alugado=true|false
@@ -138,13 +138,19 @@ class BoxViewSet(FiltraPorSedeMixin, ProtegidoContraExclusaoMixin, viewsets.Mode
     """
 
     serializer_class = BoxSerializer
-    mensagem_protegido = "Este box tem histórico de contratos e não pode ser excluído."
 
     def create(self, request, *args, **kwargs):
         # Os boxes já existem fisicamente: são cadastrados de uma vez direto no
         # banco (ou pelo /admin/), nunca pelo site.
         return Response(
             {"detail": "Não é possível criar boxes pelo sistema."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        # Boxes também não deixam de existir pelo site (o histórico deles fica guardado).
+        return Response(
+            {"detail": "Não é possível excluir boxes pelo sistema."},
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 

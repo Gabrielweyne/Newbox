@@ -174,7 +174,7 @@ class AcessoPorSedeTests(APITestCase):
         url = f"/api/boxes/{self.box_cambeba.id}/"
         self.assertEqual(self.client.get(url).status_code, 404)
         self.assertEqual(self.client.patch(url, {"valor": "1"}).status_code, 404)
-        self.assertEqual(self.client.delete(url).status_code, 404)
+        self.assertEqual(self.client.delete(url).status_code, 405)  # ninguém exclui box
         self.assertEqual(self.client.get(f"/api/sedes/{self.cambeba.id}/").status_code, 404)
 
     def test_ninguem_cria_box_pelo_site(self):
@@ -935,12 +935,15 @@ class ContratosTests(APITestCase):
 
 
 class ExclusaoComHistoricoTests(ContratosTests):
-    def test_nao_exclui_box_nem_cliente_com_historico(self):
+    def test_ninguem_exclui_box_e_cliente_com_historico_fica(self):
+        for usuario in (self.ana, User.objects.create_user("chefe3", is_staff=True)):
+            self.client.force_authenticate(usuario)
+            r = self.client.delete(f"/api/boxes/{self.box.id}/")
+            self.assertEqual(r.status_code, 405)
+        self.assertTrue(Box.objects.filter(pk=self.box.pk).exists())
+        self.client.force_authenticate(self.ana)
         self.alugar(date(2026, 1, 10))
         self.liberar(date(2026, 2, 10))
-        r = self.client.delete(f"/api/boxes/{self.box.id}/")
-        self.assertEqual(r.status_code, 409)
-        self.assertIn("histórico", r.data["detail"])
         self.assertEqual(self.client.delete(f"/api/clientes/{self.cliente.id}/").status_code, 409)
 
 
