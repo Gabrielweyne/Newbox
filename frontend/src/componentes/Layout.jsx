@@ -16,6 +16,7 @@ import {
   IconeCasa,
   IconeCracha,
   IconeEspera,
+  IconeGrafico,
   IconeMegafone,
   IconeMenu,
   IconePessoas,
@@ -34,6 +35,7 @@ function linksDo(usuario) {
     { para: "/espera", rotulo: "Lista de espera", icone: IconeEspera },
     { para: "/comunicados", rotulo: "Comunicados", icone: IconeMegafone },
     // "mais": ficam no menu "Mais" no computador
+    { para: "/relatorios", rotulo: "Relatórios", icone: IconeGrafico, mais: true },
     { para: "/tamanhos", rotulo: "Tamanhos e preços", icone: IconeCaixa, mais: true },
   ];
   if (usuario.admin) links.push({ para: "/funcionarios", rotulo: "Funcionários", icone: IconeCracha, mais: true });
@@ -208,6 +210,7 @@ const FOTOS = {
   "/espera": fotoCorredor,
   "/tamanhos": fotoGalpao,
   "/comunicados": fotoFachadaAlta,
+  "/relatorios": fotoGalpao,
   "/funcionarios": fotoFachadaPerto,
 };
 

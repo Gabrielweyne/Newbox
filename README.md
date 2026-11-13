@@ -198,6 +198,15 @@ py manage.py importar_planilha dados_iniciais/boxes_e_clientes.csv --apagar-dado
 - Pode rodar de novo com a planilha corrigida: atualiza o que já existe em vez de duplicar.
 - Clientes aceitam **CPF ou CNPJ** e têm **endereço** (aparece no contrato).
 
+## Relatórios (menu Mais > Relatórios)
+
+- **Ocupação por mês**: % de boxes alugados no último dia de cada mês (calculado pelos contratos).
+- **Adimplência por mês**: valor vencido em cada mês dividido em pago em dia, pago com atraso e em aberto.
+- **Inadimplência por mês**: % do valor vencido que ainda não foi pago.
+- **Clientes inadimplentes**: quem deve, quanto e há quantos dias, com atalho para o WhatsApp.
+- Cada gráfico tem **Ver tabela** e **Baixar planilha** (CSV para o Excel). Período: 6, 12 ou 24 meses.
+  O administrador escolhe a sede; o funcionário vê a dele. API: `GET /api/relatorios/?meses=12&sede=<id>`.
+
 ## Nota fiscal por e-mail
 
 - A nota fiscal (NFS-e) é **emitida fora do sistema** (prefeitura/contador). Em cada mensalidade,

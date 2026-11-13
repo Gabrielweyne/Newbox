@@ -1399,3 +1399,50 @@ class FiltroDiaVencimentoTests(APITestCase):
         nomes = lambda url: [c["nome"] for c in self.client.get(url).data["results"]]  # noqa: E731
         self.assertEqual(nomes(f"/api/clientes/?sede={coco.id}"), ["A", "B"])
         self.assertEqual(nomes(f"/api/clientes/?sede={camb.id}"), ["B"])
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
+class RelatoriosTests(APITestCase):
+    def setUp(self):
+        self.coco, self.camb = Sede.objects.get(nome="Cocó"), Sede.objects.get(nome="Cambeba")
+        self.cli = Cliente.objects.create(nome="A", telefone="85999990000")
+        self.b1 = Box.objects.create(sede=self.coco, numero="1", tamanho="P1", valor=100)
+        self.b2 = Box.objects.create(sede=self.coco, numero="2", tamanho="P1", valor=100)
+        Box.objects.create(sede=self.camb, numero="1", tamanho="P1", valor=100)
+        # b1 alugado desde setembro; b2 teve contrato só em setembro
+        Contrato.objects.create(box=self.b2, cliente=self.cli, tamanho="P1", valor=100, dia_vencimento=5,
+                                inicio=date(2026, 9, 1), fim=date(2026, 10, 1))
+        Box.objects.filter(pk=self.b1.pk).update(cliente=self.cli, anexo_pagamento="c/x.pdf", dia_vencimento=5,
+                                                 alugado_em=date(2026, 9, 10))
+        Contrato.objects.create(box=self.b1, cliente=self.cli, tamanho="P1", valor=100, dia_vencimento=5,
+                                inicio=date(2026, 9, 10))
+
+    @mock.patch("boxes.cobranca.hoje", return_value=date(2026, 11, 13))
+    def test_ocupacao_e_pagamentos(self, _):
+        # setembro pago em dia, outubro com atraso, novembro em aberto
+        cobranca.garantir_mensalidades()
+        Mensalidade.objects.filter(competencia=date(2026, 9, 1)).update(pago_em=date(2026, 9, 5), comprovante="c/x.pdf")
+        Mensalidade.objects.filter(competencia=date(2026, 10, 1)).update(pago_em=date(2026, 10, 9), comprovante="c/x.pdf")
+        admin = User.objects.create_user("chefe", is_staff=True)
+        self.client.force_authenticate(admin)
+        r = self.client.get(f"/api/relatorios/?meses=3&sede={self.coco.id}")
+        self.assertEqual(r.status_code, 200)
+        set_, out, nov = r.data["meses"]
+        self.assertEqual((set_["mes"], set_["ocupados"], set_["total"]), ("2026-09", 2, 2))
+        self.assertEqual((out["ocupados"], nov["ocupados"], nov["ocupacao_pct"]), (1, 1, 50.0))
+        self.assertEqual((set_["pago_em_dia"], set_["adimplencia_pct"]), (Decimal("100"), 100.0))
+        self.assertEqual((out["pago_atraso"], out["adimplencia_pct"]), (Decimal("100"), 100.0))
+        self.assertEqual((nov["em_aberto"], nov["inadimplencia_pct"]), (Decimal("100"), 100.0))
+        self.assertEqual([(d["nome"], d["valor"], d["dias_em_atraso"]) for d in r.data["devedores"]],
+                         [("A", Decimal("100"), 8)])
+        # todas as sedes: 3 boxes
+        self.assertEqual(self.client.get("/api/relatorios/?meses=1").data["meses"][0]["total"], 3)
+
+    def test_funcionario_ve_so_a_sede_dele(self):
+        bruno = User.objects.create_user("39053344705")
+        Funcionario.objects.create(usuario=bruno, nome="Bruno", cpf="39053344705", sede=self.camb)
+        self.client.force_authenticate(bruno)
+        r = self.client.get(f"/api/relatorios/?meses=1&sede={self.coco.id}")
+        self.assertEqual((r.data["sede"], r.data["meses"][0]["total"]), (self.camb.id, 1))
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get("/api/relatorios/").status_code, 401)

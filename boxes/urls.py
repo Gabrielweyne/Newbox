@@ -4,6 +4,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .auth import EuView, LoginView, LogoutView, RegistroView
 from .publico import PublicoView
+from .relatorios import RelatoriosView
 from .senha import EsqueciSenhaView, RedefinirSenhaView
 
 from .views import (
@@ -32,6 +33,7 @@ router.register("funcionarios", FuncionarioViewSet, basename="funcionario")
 
 urlpatterns = [
     path("publico/", PublicoView.as_view(), name="publico"),
+    path("relatorios/", RelatoriosView.as_view(), name="relatorios"),
     path("disponibilidade/", DisponibilidadeView.as_view(), name="disponibilidade"),
     path("auth/registro/", RegistroView.as_view(), name="registro"),
     path("auth/login/", LoginView.as_view(), name="login"),
