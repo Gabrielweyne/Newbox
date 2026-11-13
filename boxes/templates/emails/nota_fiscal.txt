@@ -1,0 +1,8 @@
+{% autoescape off %}Olá, {{ nome }}!
+
+Segue em anexo a nota fiscal{% if numero %} nº {{ numero }}{% endif %} referente à mensalidade de {{ mes }} do box #{{ box }} ({{ tamanho }}) na {{ unidade }}, no valor de {{ valor }}.
+
+Qualquer dúvida, é só responder este e-mail ou falar com a gente pelo WhatsApp.
+
+Obrigado por guardar com a Newbox!
+Equipe Newbox{% endautoescape %}

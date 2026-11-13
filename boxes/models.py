@@ -252,6 +252,11 @@ class Mensalidade(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="+", verbose_name="pagamento registrado por",
     )
+    # Nota fiscal emitida fora do sistema (prefeitura/contador) e enviada ao cliente por e-mail
+    nota_fiscal = models.FileField("nota fiscal (PDF)", upload_to="notas/%Y/%m/", null=True, blank=True)
+    nota_numero = models.CharField("número da nota", max_length=30, blank=True)
+    nota_enviada_em = models.DateTimeField("nota enviada em", null=True, blank=True)
+    nota_enviada_para = models.EmailField("nota enviada para", blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:

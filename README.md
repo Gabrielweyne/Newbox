@@ -57,7 +57,7 @@ Testes: `python manage.py test boxes`
 | Model     | Campos                                                                 |
 |-----------|------------------------------------------------------------------------|
 | `Sede`    | nome (único), endereco                                                 |
-| `Cliente` | nome, telefone (WhatsApp, obrigatório para novos), cpf (opcional, validado, único), email (opcional) |
+| `Cliente` | nome, telefone (WhatsApp) e email (obrigatórios para novos), cpf (opcional, validado, único) |
 | `Box`     | sede, tamanho, valor, cliente (quem aluga), anexo_pagamento (arquivo), dia_vencimento, alugado_em |
 | `Mensalidade` | box, cliente, competencia (mês), vencimento, valor, pago_em, comprovante, registrado_por |
 | `Funcionario` | usuario (login + e-mail), nome, cpf (único, validado), sede      |
@@ -154,8 +154,20 @@ Em `/`: conteúdo dos catálogos (diferenciais, soluções para empresas, facili
 
 ## Clientes e cobrança pelo WhatsApp
 
-- Cliente novo precisa de **WhatsApp**; CPF e e-mail são opcionais. Clientes antigos sem
-  WhatsApp aparecem com o aviso "Sem WhatsApp" para completar o cadastro.
+- Cliente novo precisa de **WhatsApp** e **e-mail**; CPF é opcional. Clientes antigos sem
+  esses dados aparecem com o aviso "Sem WhatsApp" / "Sem e-mail" para completar o cadastro.
+
+## Nota fiscal por e-mail
+
+- A nota fiscal (NFS-e) é **emitida fora do sistema** (prefeitura/contador). Em cada mensalidade,
+  o botão **Nota fiscal** recebe o PDF (e o número, opcional) e **envia na hora por e-mail ao
+  cliente**, com o PDF anexado. O sistema registra quando e para qual e-mail foi enviado
+  ("NF enviada"), e permite reenviar ou substituir o PDF.
+- Se o e-mail não puder ser enviado, a nota fica salva e o sistema avisa para reenviar.
+- API: `POST /api/mensalidades/<id>/nota-fiscal/` com `arquivo` (PDF) e `numero`; sem arquivo,
+  reenvia a nota já anexada.
+- Futuro: integrar um emissor de NFS-e (Focus NFe, NFE.io, eNotas...) para emitir a nota
+  automaticamente ao registrar o pagamento.
 - **Ficha do cliente** (`/clientes/<id>`): contato, total em atraso, boxes alugados e histórico
   de mensalidades, com registrar pagamento e cobrar.
 - Mensalidades **atrasadas** ou que **vencem hoje** têm o botão **Cobrar no WhatsApp**, com a

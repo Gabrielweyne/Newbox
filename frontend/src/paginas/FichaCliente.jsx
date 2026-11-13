@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import BotaoCobrar from "../componentes/BotaoCobrar";
 import ListaContratos from "../componentes/Contratos";
+import BotaoNotaFiscal from "../componentes/NotaFiscal";
 import { Banner } from "../componentes/Layout";
 import { IconeClipe, IconeEmail, IconeLapis, IconeWhatsapp } from "../componentes/Icones";
 import RegistrarPagamento from "../componentes/RegistrarPagamento";
@@ -70,11 +71,14 @@ export default function FichaCliente() {
                 </button>
               )}
             </p>
-            {cliente.email && (
-              <p className="flex items-center gap-2">
-                <IconeEmail className="size-4 text-roxo" /> {cliente.email}
-              </p>
-            )}
+            <p className="flex items-center gap-2">
+              <IconeEmail className="size-4 text-roxo" />
+              {cliente.email || (
+                <button onClick={() => setEditando(true)} className="text-amber-700 hover:underline">
+                  Sem e-mail, cadastrar
+                </button>
+              )}
+            </p>
             {cliente.cpf && <p className="text-marinho-claro/80">CPF {formatarCpf(cliente.cpf)}</p>}
           </Cartao>
 
@@ -150,6 +154,7 @@ export default function FichaCliente() {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
+                      <BotaoNotaFiscal m={{ ...m, cliente_email: cliente.email }} aoAtualizar={carregar} />
                       {m.situacao === "paga" ? (
                         <a
                           href={m.comprovante}

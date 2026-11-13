@@ -59,7 +59,7 @@ export function FormCliente({ cliente, aoSalvar, aoFechar }) {
           onChange={mudar("cpf")}
           erro={erro?.campo("cpf")}
         />
-        <Campo rotulo="E-mail (opcional)" type="email" value={dados.email} onChange={mudar("email")} erro={erro?.campo("email")} />
+        <Campo rotulo="E-mail" type="email" ajuda="Para onde vai a nota fiscal." value={dados.email} onChange={mudar("email")} erro={erro?.campo("email")} />
       </div>
       <div className="flex justify-end gap-2 pt-2">
         <Botao type="button" variante="fantasma" onClick={aoFechar}>
@@ -139,6 +139,7 @@ export default function Clientes() {
                       </Link>
                       <p className="text-xs text-marinho-claro/60">
                         {c.telefone ? formatarTelefone(c.telefone) : <span className="text-amber-700">Sem WhatsApp</span>} ·{" "}
+                        {!c.email && <><span className="text-amber-700">Sem e-mail</span> ·{" "}</>}
                         {c.total_boxes === 0
                           ? "nenhum box alugado"
                           : `${c.total_boxes} box${c.total_boxes > 1 ? "es" : ""} alugado${c.total_boxes > 1 ? "s" : ""}`}

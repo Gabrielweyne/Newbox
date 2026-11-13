@@ -62,14 +62,21 @@ class ClienteSerializer(serializers.ModelSerializer):
                 },
             },
             "cpf": {"max_length": 14, "required": False},
-            "email": {"required": False},
+            "email": {
+                "required": True, "allow_blank": False,
+                "error_messages": {
+                    "blank": "Informe o e-mail do cliente.",
+                    "required": "Informe o e-mail do cliente.",
+                },
+            },
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Clientes antigos podem não ter WhatsApp: na edição parcial ele não é exigido
+        # Clientes antigos podem não ter WhatsApp/e-mail: na edição parcial não são exigidos
         if self.instance is not None and self.partial:
             self.fields["telefone"].required = False
+            self.fields["email"].required = False
 
     def validate_telefone(self, valor):
         return limpar_telefone(valor)
@@ -254,6 +261,7 @@ class MensalidadeSerializer(serializers.ModelSerializer):
     sede_nome = serializers.CharField(source="box.sede.nome", read_only=True)
     cliente_nome = serializers.CharField(source="cliente.nome", read_only=True)
     cliente_telefone = serializers.CharField(source="cliente.telefone", read_only=True)
+    cliente_email = serializers.CharField(source="cliente.email", read_only=True)
     situacao = serializers.SerializerMethodField()
     registrado_por_nome = serializers.SerializerMethodField()
 
@@ -263,6 +271,7 @@ class MensalidadeSerializer(serializers.ModelSerializer):
             "id", "box", "box_tamanho", "sede", "sede_nome", "cliente", "cliente_nome", "cliente_telefone",
             "competencia", "vencimento", "valor", "pago_em", "comprovante",
             "situacao", "registrado_por_nome",
+            "nota_fiscal", "nota_numero", "nota_enviada_em", "nota_enviada_para", "cliente_email",
         ]
         read_only_fields = fields
 
@@ -354,3 +363,15 @@ class ContratoSerializer(serializers.ModelSerializer):
 
     def get_duracao(self, obj):
         return cobranca.duracao(obj.inicio, obj.fim)
+
+
+class NotaFiscalSerializer(serializers.Serializer):
+    arquivo = serializers.FileField(required=False)
+    numero = serializers.CharField(max_length=30, required=False, allow_blank=True)
+
+    def validate_arquivo(self, arquivo):
+        if not arquivo.name.lower().endswith(".pdf"):
+            raise serializers.ValidationError("Envie a nota fiscal em PDF.")
+        if arquivo.size > 10 * 1024 * 1024:
+            raise serializers.ValidationError("Arquivo muito grande (máximo 10 MB).")
+        return arquivo

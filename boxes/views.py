@@ -1,3 +1,5 @@
+import logging
+
 from django.db.models import Count, Exists, OuterRef, ProtectedError, Q, Subquery
 from django.http import HttpResponse
 from django.utils import timezone
@@ -7,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from . import cobranca, espera
+from .notas import enviar_nota_fiscal
 from .contrato_pdf import gerar_pdf_contrato
 from .models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede, TipoBox
 from .permissions import EhAdminOuFuncionario, SomenteAdminAltera, sede_do_usuario
@@ -17,6 +20,7 @@ from .serializers import (
     FuncionarioSerializer,
     InteressadoSerializer,
     MensalidadeSerializer,
+    NotaFiscalSerializer,
     PagamentoSerializer,
     SedeOpcaoSerializer,
     SedeSerializer,
@@ -284,6 +288,40 @@ class MensalidadeViewSet(FiltraPorSedeMixin, viewsets.ReadOnlyModelViewSet):
         mensalidade.pago_em = dados.validated_data.get("pago_em") or cobranca.hoje()
         mensalidade.registrado_por = request.user
         mensalidade.save(update_fields=["comprovante", "pago_em", "registrado_por"])
+        return Response(self.get_serializer(mensalidade).data)
+
+    @action(detail=True, methods=["post"], url_path="nota-fiscal")
+    def nota_fiscal(self, request, pk=None):
+        """
+        Anexa o PDF da nota fiscal (emitida fora do sistema) e envia por e-mail ao
+        cliente. Sem arquivo novo, reenvia a nota já anexada.
+        """
+        mensalidade = self.get_object()
+        if not mensalidade.cliente.email:
+            return Response(
+                {"detail": "Cliente sem e-mail cadastrado. Complete o cadastro dele antes de enviar a nota."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        dados = NotaFiscalSerializer(data=request.data)
+        dados.is_valid(raise_exception=True)
+        arquivo = dados.validated_data.get("arquivo")
+        if arquivo:
+            mensalidade.nota_fiscal = arquivo
+            mensalidade.nota_numero = dados.validated_data.get("numero", "").strip()
+            mensalidade.nota_enviada_em = None
+            mensalidade.nota_enviada_para = ""
+            mensalidade.save(update_fields=["nota_fiscal", "nota_numero", "nota_enviada_em", "nota_enviada_para"])
+        elif not mensalidade.nota_fiscal:
+            return Response({"arquivo": ["Anexe o PDF da nota fiscal."]}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            enviar_nota_fiscal(mensalidade)
+        except Exception:
+            logging.getLogger(__name__).exception("Falha ao enviar nota fiscal por e-mail")
+            return Response(
+                {"detail": "A nota foi salva, mas o e-mail não pôde ser enviado. Confira a configuração "
+                           "de e-mail e tente reenviar.", "mensalidade": self.get_serializer(mensalidade).data},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
         return Response(self.get_serializer(mensalidade).data)
 
     @action(detail=True, methods=["post"])

@@ -807,12 +807,16 @@ class ContatoClienteTests(APITestCase):
     def test_whatsapp_obrigatorio_e_cpf_validado(self):
         r = self.client.post("/api/clientes/", {"nome": "Sem Zap"})
         self.assertIn("telefone", r.data)
-        r = self.client.post("/api/clientes/", {"nome": "Zé", "telefone": "(85) 99876-5432", "cpf": "529.982.247-25"})
+        self.assertEqual(r.data["email"], ["Informe o e-mail do cliente."])
+        r = self.client.post("/api/clientes/", {"nome": "Zé", "telefone": "(85) 99876-5432", "cpf": "529.982.247-25",
+                                                "email": "ze@exemplo.com"})
         self.assertEqual(r.status_code, 201, r.data)
         self.assertEqual((r.data["telefone"], r.data["cpf"]), ("85998765432", "52998224725"))
-        r = self.client.post("/api/clientes/", {"nome": "Outro", "telefone": "85911112222", "cpf": "529.982.247-25"})
+        r = self.client.post("/api/clientes/", {"nome": "Outro", "telefone": "85911112222", "cpf": "529.982.247-25",
+                                                "email": "o@exemplo.com"})
         self.assertIn("cpf", r.data)
-        r = self.client.post("/api/clientes/", {"nome": "Outro", "telefone": "85911112222", "cpf": "123.456.789-00"})
+        r = self.client.post("/api/clientes/", {"nome": "Outro", "telefone": "85911112222", "cpf": "123.456.789-00",
+                                                "email": "o@exemplo.com"})
         self.assertIn("cpf", r.data)
 
     def test_cliente_antigo_sem_telefone_pode_ser_editado(self):
@@ -990,3 +994,69 @@ class CatalogoTests(APITestCase):
         tamanhos = self.client.get("/api/interessados/tamanhos/").data
         self.assertIn("M1 SUP", tamanhos)
         self.assertIn("G4", tamanhos)
+
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
+class NotaFiscalTests(APITestCase):
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.ana = User.objects.create_user("52998224725")
+        Funcionario.objects.create(usuario=self.ana, nome="Ana", cpf="52998224725", sede=self.coco)
+        self.cliente = Cliente.objects.create(nome="Carlos Souza", telefone="85998765432", email="carlos@exemplo.com")
+        box = Box.objects.create(sede=self.coco, tamanho="P1", valor=400, cliente=self.cliente,
+                                 anexo_pagamento="c/x.pdf", dia_vencimento=10, alugado_em=date(2026, 11, 1))
+        self.m = Mensalidade.objects.create(box=box, cliente=self.cliente, competencia=date(2026, 11, 1),
+                                            vencimento=date(2026, 11, 10), valor=400)
+        self.url = f"/api/mensalidades/{self.m.id}/nota-fiscal/"
+        self.client.force_authenticate(self.ana)
+
+    def pdf(self, nome="nf.pdf"):
+        return SimpleUploadedFile(nome, b"%PDF-1.4 nota", content_type="application/pdf")
+
+    def test_envia_nota_por_email_com_anexo(self):
+        r = self.client.post(self.url, {"arquivo": self.pdf(), "numero": "1234"}, format="multipart")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data["nota_numero"], "1234")
+        self.assertEqual(r.data["nota_enviada_para"], "carlos@exemplo.com")
+        self.assertIsNotNone(r.data["nota_enviada_em"])
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.to, ["carlos@exemplo.com"])
+        self.assertIn("novembro de 2026", email.subject)
+        self.assertIn("nº 1234", email.subject)
+        self.assertIn("Olá, Carlos!", email.body)
+        nome, conteudo, tipo = email.attachments[0]
+        self.assertEqual((nome, tipo), ("nota-fiscal-newbox-2026-11-box%d.pdf" % self.m.box_id, "application/pdf"))
+        self.assertTrue(conteudo.startswith(b"%PDF"))
+
+    def test_reenviar_sem_novo_arquivo(self):
+        self.assertIn("arquivo", self.client.post(self.url, {}, format="multipart").data)
+        self.client.post(self.url, {"arquivo": self.pdf()}, format="multipart")
+        r = self.client.post(self.url, {}, format="multipart")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(mail.outbox), 2)
+
+    def test_so_pdf_e_cliente_precisa_de_email(self):
+        r = self.client.post(self.url, {"arquivo": SimpleUploadedFile("nf.png", b"x")}, format="multipart")
+        self.assertIn("arquivo", r.data)
+        self.cliente.email = ""
+        self.cliente.save()
+        r = self.client.post(self.url, {"arquivo": self.pdf()}, format="multipart")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("sem e-mail", r.data["detail"])
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_falha_no_email_guarda_a_nota(self):
+        with mock.patch("boxes.notas.EmailMultiAlternatives.send", side_effect=OSError("smtp fora")):
+            r = self.client.post(self.url, {"arquivo": self.pdf()}, format="multipart")
+        self.assertEqual(r.status_code, 502)
+        self.m.refresh_from_db()
+        self.assertTrue(self.m.nota_fiscal.name)
+        self.assertIsNone(self.m.nota_enviada_em)
+
+    def test_outra_sede_nao_envia(self):
+        beto = User.objects.create_user("11144477735")
+        Funcionario.objects.create(usuario=beto, nome="Beto", cpf="11144477735", sede=Sede.objects.get(nome="Cambeba"))
+        self.client.force_authenticate(beto)
+        self.assertEqual(self.client.post(self.url, {"arquivo": self.pdf()}, format="multipart").status_code, 404)

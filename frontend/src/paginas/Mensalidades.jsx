@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import Confirmar from "../componentes/Confirmar";
 import BotaoCobrar from "../componentes/BotaoCobrar";
+import BotaoNotaFiscal from "../componentes/NotaFiscal";
 import { Banner } from "../componentes/Layout";
 import RegistrarPagamento from "../componentes/RegistrarPagamento";
 import { IconeCalendario, IconeClipe, IconeDinheiro, IconeSetaDir, IconeSetaEsq } from "../componentes/Icones";
@@ -36,12 +37,13 @@ function Resumo({ rotulo, valor, detalhe, cor }) {
   );
 }
 
-function Acoes({ m, pagar, desfazer }) {
+function Acoes({ m, pagar, desfazer, atualizar }) {
   const btn = "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition";
   if (m.situacao !== "paga") {
     return (
       <div className="flex flex-wrap justify-end gap-1.5">
         {m.situacao !== "a_vencer" && <BotaoCobrar m={m} />}
+        <BotaoNotaFiscal m={m} aoAtualizar={atualizar} />
         <button onClick={() => pagar(m)} className={`${btn} bg-roxo text-white hover:bg-roxo-600`}>
           <IconeDinheiro className="size-4" /> Registrar pagamento
         </button>
@@ -50,6 +52,7 @@ function Acoes({ m, pagar, desfazer }) {
   }
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
+      <BotaoNotaFiscal m={m} aoAtualizar={atualizar} />
       <a href={m.comprovante} target="_blank" rel="noreferrer" className={`${btn} text-roxo hover:bg-roxo-50`}>
         <IconeClipe className="size-4" /> Comprovante
       </a>
@@ -204,7 +207,7 @@ export default function Mensalidades() {
                       </p>
                     </div>
                     <div className="sm:shrink-0">
-                      <Acoes m={m} pagar={setPagando} desfazer={setDesfazendo} />
+                      <Acoes m={m} pagar={setPagando} desfazer={setDesfazendo} atualizar={aposMudanca} />
                     </div>
                   </li>
                 );

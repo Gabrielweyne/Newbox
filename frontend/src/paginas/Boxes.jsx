@@ -163,6 +163,7 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
   const [cliente, setCliente] = useState("");
   const [novoNome, setNovoNome] = useState("");
   const [novoTelefone, setNovoTelefone] = useState("");
+  const [novoEmail, setNovoEmail] = useState("");
   const [arquivo, setArquivo] = useState(null);
   const [dia, setDia] = useState("");
   const [erro, setErro] = useState(null);
@@ -185,7 +186,7 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
     try {
       let idCliente = cliente;
       if (novo) {
-        idCliente = (await api("/clientes/", { metodo: "POST", corpo: { nome: novoNome, telefone: novoTelefone } })).id;
+        idCliente = (await api("/clientes/", { metodo: "POST", corpo: { nome: novoNome, telefone: novoTelefone, email: novoEmail } })).id;
       }
       const corpo = new FormData();
       corpo.append("cliente", idCliente);
@@ -200,7 +201,7 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
   }
 
   if (!clientes && !erro) return <Carregando texto="Carregando clientes..." />;
-  const campos = ["cliente", "nome", "telefone", "anexo_pagamento", "dia_vencimento"];
+  const campos = ["cliente", "nome", "telefone", "email", "anexo_pagamento", "dia_vencimento"];
 
   return (
     <form onSubmit={enviar} className="space-y-4" noValidate>
@@ -242,6 +243,16 @@ function FormAlugar({ box, aoSalvar, aoFechar }) {
           value={novoTelefone}
           onChange={(e) => setNovoTelefone(formatarTelefone(e.target.value))}
           erro={erro?.campo("telefone")}
+        />
+      )}
+      {novo && (
+        <Campo
+          rotulo="E-mail do novo cliente"
+          type="email"
+          value={novoEmail}
+          onChange={(e) => setNovoEmail(e.target.value)}
+          erro={erro?.campo("email")}
+          ajuda="Para onde vai a nota fiscal."
         />
       )}
       <Selecao
