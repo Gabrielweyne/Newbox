@@ -29,3 +29,40 @@
     @apply outline-2 outline-offset-2 outline-roxo;
   }
 }
+
+/* ---------- Canguru pulando (componentes/Canguru.jsx) ---------- */
+.canguru-trajeto {
+  animation: canguru-trajeto 1.8s linear forwards;
+}
+.canguru-pulo {
+  transform-origin: 50% 100%;
+  animation: canguru-pulo 0.5s ease-in-out 0.1s 3;
+}
+.canguru-sombra {
+  animation: canguru-sombra 0.5s ease-in-out 0.1s 3;
+}
+@keyframes canguru-trajeto {
+  0% { transform: translateX(-30px); opacity: 0; }
+  8% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateX(min(300px, 60vw)); opacity: 0; }
+}
+@keyframes canguru-pulo {
+  0% { transform: translateY(0) scale(1.08, 0.9); }
+  18% { transform: translateY(0) scale(0.94, 1.08); }
+  50% { transform: translateY(-46px) rotate(-8deg); }
+  82% { transform: translateY(0) scale(1, 1); }
+  100% { transform: translateY(0) scale(1.08, 0.9); }
+}
+@keyframes canguru-sombra {
+  0%, 18%, 82%, 100% { transform: scaleX(1); opacity: 1; }
+  50% { transform: scaleX(0.5); opacity: 0.4; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .canguru-trajeto { animation: canguru-aparece 1.4s ease forwards; }
+  .canguru-pulo, .canguru-sombra { animation: none; }
+  @keyframes canguru-aparece {
+    0%, 100% { opacity: 0; }
+    20%, 75% { opacity: 1; }
+  }
+}

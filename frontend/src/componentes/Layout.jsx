@@ -26,6 +26,7 @@ import {
   IconeSetaDir,
   IconeX,
 } from "./Icones";
+import CanguruPulando, { BotaoCanguru } from "./Canguru";
 import Sino from "./Sino";
 
 function linksDo(usuario) {
@@ -198,11 +199,15 @@ function Estrutura() {
       <footer className="bg-roxo text-white">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-6 sm:flex-row">
           <img src={logoBranco} alt="Newbox" className="h-12 w-auto" />
-          <p className="text-center text-xs text-white/85">
-            Área do funcionário · New Box © {new Date().getFullYear()} Todos os direitos reservados.
-          </p>
+          <div className="flex flex-col items-center gap-2 sm:items-end">
+            <BotaoCanguru />
+            <p className="text-center text-xs text-white/85">
+              Área do funcionário · New Box © {new Date().getFullYear()} Todos os direitos reservados.
+            </p>
+          </div>
         </div>
       </footer>
+      <CanguruPulando />
     </div>
   );
 }

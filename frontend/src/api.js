@@ -75,6 +75,12 @@ async function renovarAccess() {
  * Faz uma chamada à API.
  * corpo: objeto (vira JSON) ou FormData (para envio de arquivo).
  */
+/** Ação concluída (salvou, alugou, pagou...): solta o canguru (componentes/Canguru.jsx). */
+function avisarAcao(metodo, caminho, autenticar) {
+  if (metodo === "GET" || !autenticar || caminho.startsWith("/auth/") || caminho.includes("/previa")) return;
+  window.dispatchEvent(new Event("newbox:acao"));
+}
+
 export async function api(caminho, { metodo = "GET", corpo, autenticar = true, arquivo = false } = {}, tentativa = 0) {
   const headers = {};
   let body;
@@ -99,6 +105,7 @@ export async function api(caminho, { metodo = "GET", corpo, autenticar = true, a
     aoDeslogar();
   }
 
+  if (resposta.ok) avisarAcao(metodo, caminho, autenticar);
   if (resposta.status === 204) return null;
   if (arquivo && resposta.ok) return resposta.blob();
   const dados = await resposta.json().catch(() => null);
