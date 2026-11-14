@@ -52,7 +52,9 @@ def garantir_mensalidades(ate=None, boxes=None):
     o mês de `ate` (padrão: hoje). Idempotente: pode ser chamada à vontade.
     """
     from .models import Box, Mensalidade
+    from .reajustes import aplicar_pendentes
 
+    aplicar_pendentes()  # reajustes cujo mês chegou entram antes de gerar as mensalidades
     limite = inicio_do_mes(ate or hoje())
     # Box com valor zero (ex.: cobrado junto com outro box do mesmo cliente) não gera mensalidade
     boxes = (boxes if boxes is not None else Box.objects.all()).filter(cliente__isnull=False, valor__gt=0)

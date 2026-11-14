@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import Confirmar from "../componentes/Confirmar";
 import ListaContratos, { BotaoPdf } from "../componentes/Contratos";
 import { Banner } from "../componentes/Layout";
@@ -8,6 +8,7 @@ import {
   IconeCaixa,
   IconeClipe,
   IconeDestravar,
+  IconeDinheiro,
   IconeLapis,
   IconeChave,
   IconeHistorico,
@@ -447,7 +448,7 @@ const PARA_CONFERIR = /conferir|definir|estimad|inválid|não informad|não tem|
 const naSituacao = (s, b) =>
   s === "todos" || (s === "conferir" ? PARA_CONFERIR.test(b.observacao || "") : (s === "alugados") === b.alugado);
 
-function Acoes({ box, abrir }) {
+function Acoes({ box, abrir, admin }) {
   const btn = "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition";
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
@@ -458,6 +459,11 @@ function Acoes({ box, abrir }) {
           </a>
           {box.contrato_ativo && (
             <BotaoPdf id={box.contrato_ativo} rotulo="Contrato" className="!ring-0" />
+          )}
+          {admin && (
+            <Link to={`/reajustes?box=${box.id}`} className={`${btn} text-marinho-claro hover:bg-roxo-50`}>
+              <IconeDinheiro className="size-4" /> Reajustar
+            </Link>
           )}
           <button onClick={() => abrir("liberar", box)} className={`${btn} text-marinho-claro hover:bg-roxo-50`}>
             <IconeDestravar className="size-4" /> Liberar
@@ -667,7 +673,7 @@ export default function Boxes() {
                         )}
                       </td>
                       <td className="px-5 py-3">
-                        <Acoes box={b} abrir={abrir} />
+                        <Acoes box={b} abrir={abrir} admin={usuario.admin} />
                       </td>
                     </tr>
                   ))}
@@ -693,7 +699,7 @@ export default function Boxes() {
                       </div>
                       <Situacao box={b} />
                     </div>
-                    <Acoes box={b} abrir={abrir} />
+                    <Acoes box={b} abrir={abrir} admin={usuario.admin} />
                   </li>
                 ))}
               </ul>

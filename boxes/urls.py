@@ -4,6 +4,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .auth import EuView, LoginView, LogoutView, RegistroView
 from .publico import PublicoView
+from .reajustes_api import ReajusteViewSet
 from .relatorios import RelatoriosView
 from .seguranca import AlteracaoViewSet, BackupsView, BaixarBackupView
 from .senha import EsqueciSenhaView, RedefinirSenhaView
@@ -32,6 +33,7 @@ router.register("tipos", TipoBoxViewSet, basename="tipo")
 router.register("comunicados", ComunicadoViewSet, basename="comunicado")
 router.register("funcionarios", FuncionarioViewSet, basename="funcionario")
 router.register("alteracoes", AlteracaoViewSet, basename="alteracao")
+router.register("reajustes", ReajusteViewSet, basename="reajuste")
 
 urlpatterns = [
     path("publico/", PublicoView.as_view(), name="publico"),

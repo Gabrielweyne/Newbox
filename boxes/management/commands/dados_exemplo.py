@@ -20,7 +20,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from boxes import cobranca
-from boxes.models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Sede, TipoBox
+from boxes.models import Box, Cliente, Contrato, Funcionario, Interessado, Mensalidade, Reajuste, Sede, TipoBox
 
 User = get_user_model()
 SENHA = "Newbox#2026"
@@ -51,6 +51,7 @@ class Command(BaseCommand):
         if not settings.DEBUG:
             raise CommandError("Por segurança, este comando só roda com DJANGO_DEBUG=1.")
         if apagar:
+            Reajuste.objects.all().delete()
             Interessado.objects.all().delete()
             Contrato.objects.all().delete()
             Mensalidade.objects.all().delete()

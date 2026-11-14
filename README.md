@@ -207,6 +207,19 @@ py manage.py importar_planilha dados_iniciais/boxes_e_clientes.csv --apagar-dado
 - Cada gráfico tem **Ver tabela** e **Baixar planilha** (CSV para o Excel). Período: 6, 12 ou 24 meses.
   O administrador escolhe a sede; o funcionário vê a dele. API: `GET /api/relatorios/?meses=12&sede=<id>`.
 
+## Reajustes (menu Mais > Reajustes, só administrador; ou "Reajustar" no box em Boxes)
+
+- Escolha um ou vários boxes alugados (filtro por sede, tamanho, número ou cliente), o reajuste em
+  **%** ou o **novo valor**, e o **mês a partir do qual vale** (padrão: o próximo mês).
+- **Ver como fica** mostra valor atual e novo de cada box antes de confirmar.
+- Ao confirmar, cada cliente recebe **e-mail** com valor atual, novo valor, mês e data do primeiro
+  vencimento; o aviso por **WhatsApp** fica pronto (um clique por cliente, marcado como enviado).
+- Quando o mês chega, o sistema aplica sozinho: valor do box, do contrato e das mensalidades ainda não
+  pagas daquele mês em diante. Se o mês escolhido for o atual, aplica na hora.
+- Um reajuste agendado pode ser **cancelado**; se o box for liberado antes, ele é cancelado sozinho.
+  Só um reajuste agendado por box. API: `/api/reajustes/` (`previa/`, `<id>/cancelar/`,
+  `<id>/reenviar-email/`, `<id>/whatsapp/`).
+
 ## Segurança: backup e histórico de alterações (menu Mais > Segurança e backup, só administrador)
 
 **Backup**

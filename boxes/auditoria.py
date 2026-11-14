@@ -192,7 +192,7 @@ def modelos_auditados():
     from . import models as m
 
     return [m.Sede, m.TipoBox, m.Cliente, m.Box, m.Mensalidade, m.Funcionario, m.Interessado,
-            m.Contrato, m.Comunicado, get_user_model()]
+            m.Contrato, m.Comunicado, m.Reajuste, get_user_model()]
 
 
 def conectar():

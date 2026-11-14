@@ -1,0 +1,16 @@
+{% autoescape off %}Olá, {{ nome }}!
+
+Informamos que a mensalidade do seu box na Newbox será reajustada.
+
+Box: {{ box }} ({{ tamanho }})
+Unidade: {{ unidade }}
+Valor atual: {{ valor_anterior }}
+Novo valor: {{ valor_novo }}
+A partir de: {{ mes }} (vencimento em {{ primeiro_vencimento }})
+{% if mensagem %}
+{{ mensagem }}
+{% endif %}
+Qualquer dúvida, é só responder este e-mail ou falar com a gente pelo WhatsApp.
+
+Obrigado por guardar com a Newbox!
+{% endautoescape %}

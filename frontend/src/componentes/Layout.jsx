@@ -15,6 +15,7 @@ import {
   IconeCalendario,
   IconeCasa,
   IconeCracha,
+  IconeDinheiro,
   IconeEscudo,
   IconeEspera,
   IconeGrafico,
@@ -41,6 +42,7 @@ function linksDo(usuario) {
   ];
   if (usuario.admin) {
     links.push({ para: "/funcionarios", rotulo: "Funcionários", icone: IconeCracha, mais: true });
+    links.push({ para: "/reajustes", rotulo: "Reajustes", icone: IconeDinheiro, mais: true });
     links.push({ para: "/seguranca", rotulo: "Segurança e backup", icone: IconeEscudo, mais: true });
   }
   return links;
@@ -216,6 +218,7 @@ const FOTOS = {
   "/comunicados": fotoFachadaAlta,
   "/relatorios": fotoGalpao,
   "/seguranca": fotoFachada,
+  "/reajustes": fotoCorredor,
   "/funcionarios": fotoFachadaPerto,
 };
 

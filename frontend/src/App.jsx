@@ -6,6 +6,7 @@ import Boxes from "./paginas/Boxes";
 import Cadastro from "./paginas/Cadastro";
 import Catalogo from "./paginas/Catalogo";
 import Relatorios from "./paginas/Relatorios";
+import Reajustes from "./paginas/Reajustes";
 import Seguranca from "./paginas/Seguranca";
 import Clientes from "./paginas/Clientes";
 import Comunicados from "./paginas/Comunicados";
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="espera" element={<ListaEspera />} />
         <Route path="tamanhos" element={<Catalogo />} />
         <Route path="relatorios" element={<Relatorios />} />
+        <Route path="reajustes" element={<Protegida soAdmin><Reajustes /></Protegida>} />
         <Route path="seguranca" element={<Protegida soAdmin><Seguranca /></Protegida>} />
         <Route path="comunicados" element={<Comunicados />} />
         <Route path="funcionarios" element={<Protegida soAdmin><Funcionarios /></Protegida>} />

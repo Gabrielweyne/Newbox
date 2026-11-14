@@ -35,7 +35,8 @@ from django.db import transaction
 
 from boxes import cobranca
 from boxes.models import (
-    DIAS_VENCIMENTO, Box, Cliente, Comunicado, Contrato, EnvioComunicado, Interessado, Mensalidade, Sede, TipoBox,
+    DIAS_VENCIMENTO, Box, Cliente, Comunicado, Contrato, EnvioComunicado, Interessado, Mensalidade, Reajuste, Sede,
+    TipoBox,
 )
 from boxes.validators import somente_digitos, validar_documento
 
@@ -242,6 +243,7 @@ class Command(BaseCommand):
     # ---------- gravação ----------
 
     def apagar_tudo(self):
+        Reajuste.objects.all().delete()
         EnvioComunicado.objects.all().delete()
         Comunicado.objects.all().delete()
         Interessado.objects.all().delete()

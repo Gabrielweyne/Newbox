@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-br">
+  <body style="margin:0;padding:24px;background:#f7f5fa;font-family:Poppins,Arial,Helvetica,sans-serif;color:#2c3e50;">
+    <table role="presentation" width="100%" style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;">
+      <tr><td style="background:#23313f;padding:22px 28px;">
+        <p style="margin:0;color:#bf98cb;font-size:22px;">Reajuste da mensalidade</p>
+        <p style="margin:4px 0 0;color:#ffffffbf;font-size:13px;">A partir de {{ mes }}</p>
+      </td></tr>
+      <tr><td style="height:6px;background:#251f3c;"></td></tr>
+      <tr><td style="padding:28px;">
+        <p style="margin:0 0 16px;line-height:1.5;">Olá, {{ nome }}!</p>
+        <p style="margin:0 0 20px;line-height:1.5;">Informamos que a mensalidade do seu box na Newbox será reajustada.</p>
+        <table role="presentation" style="width:100%;font-size:14px;background:#f6f0f8;border-radius:8px;">
+          <tr><td style="padding:10px 14px;color:#683c73;">Box</td><td style="padding:10px 14px;"><strong>{{ box }}</strong> ({{ tamanho }})</td></tr>
+          <tr><td style="padding:10px 14px;color:#683c73;">Unidade</td><td style="padding:10px 14px;">{{ unidade }}</td></tr>
+          <tr><td style="padding:10px 14px;color:#683c73;">Valor atual</td><td style="padding:10px 14px;">{{ valor_anterior }}</td></tr>
+          <tr><td style="padding:10px 14px;color:#683c73;">Novo valor</td><td style="padding:10px 14px;"><strong>{{ valor_novo }}</strong></td></tr>
+          <tr><td style="padding:10px 14px;color:#683c73;">A partir de</td><td style="padding:10px 14px;">{{ mes }} (vencimento em {{ primeiro_vencimento }})</td></tr>
+        </table>
+        {% if mensagem %}<p style="margin:20px 0 0;line-height:1.5;">{{ mensagem|linebreaksbr }}</p>{% endif %}
+        <p style="margin:20px 0 0;font-size:14px;color:#52525b;line-height:1.5;">
+          Qualquer dúvida, é só responder este e-mail ou falar com a gente pelo WhatsApp.
+        </p>
+      </td></tr>
+      <tr><td style="background:#965ba5;padding:14px 28px;color:#ffffff;font-size:12px;">Obrigado por guardar com a Newbox! · Guarda tudo</td></tr>
+    </table>
+  </body>
+</html>

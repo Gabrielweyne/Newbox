@@ -502,3 +502,52 @@ class Alteracao(models.Model):
 
     def __str__(self):
         return f"{self.usuario_nome} {self.acao} {self.tipo} {self.objeto}"
+
+
+class Reajuste(models.Model):
+    """
+    Reajuste do valor de um box alugado. O cliente é avisado na hora (e-mail +
+    mensagem pronta de WhatsApp) e o novo valor passa a valer na mensalidade do
+    mês de `vigencia` em diante (aplicado sozinho quando o mês chega).
+    """
+
+    box = models.ForeignKey(Box, on_delete=models.PROTECT, related_name="reajustes")
+    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name="reajustes")
+    valor_anterior = models.DecimalField(max_digits=10, decimal_places=2)
+    valor_novo = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    vigencia = models.DateField("a partir de", help_text="Primeiro dia do mês em que o novo valor começa.")
+    mensagem = models.TextField(blank=True, help_text="Texto extra no aviso ao cliente (opcional).")
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+    aplicado_em = models.DateTimeField(null=True, blank=True)
+    cancelado_em = models.DateTimeField(null=True, blank=True)
+    email_enviado_em = models.DateTimeField(null=True, blank=True)
+    email_erro = models.CharField(max_length=300, blank=True)
+    whatsapp_enviado_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-criado_em", "-id"]
+        constraints = [
+            models.CheckConstraint(condition=Q(vigencia__day=1), name="reajuste_vigencia_dia_1"),
+            models.UniqueConstraint(
+                fields=["box"], condition=Q(aplicado_em__isnull=True, cancelado_em__isnull=True),
+                name="reajuste_um_pendente_por_box",
+            ),
+        ]
+
+    @property
+    def situacao(self):
+        if self.cancelado_em:
+            return "cancelado"
+        return "aplicado" if self.aplicado_em else "agendado"
+
+    @property
+    def percentual(self):
+        if not self.valor_anterior:
+            return None
+        return round(float((self.valor_novo - self.valor_anterior) * 100 / self.valor_anterior), 1)
+
+    def __str__(self):
+        return f"Reajuste {self.box.rotulo}: {self.valor_anterior} -> {self.valor_novo}"

@@ -1556,3 +1556,99 @@ class CriarAdminTests(APITestCase):
         r = self.client.post("/api/auth/login/", {"cpf": "529.982.247-25", "senha": "Senha#Forte2026"})
         self.assertEqual(r.status_code, 200, r.data)
         self.assertTrue(r.data["admin"])
+
+
+from django.core import mail  # noqa: E402
+
+from .models import Reajuste  # noqa: E402
+
+
+@override_settings(MEDIA_ROOT="/tmp/newbox-test-media")
+class ReajusteTests(APITestCase):
+    def setUp(self):
+        self.coco = Sede.objects.get(nome="Cocó")
+        self.admin = User.objects.create_user("chefe", is_staff=True)
+        self.client.force_authenticate(self.admin)
+        self.cli = Cliente.objects.create(nome="Carlos Souza", telefone="85999990000", email="c@x.com")
+        self.box = Box.objects.create(sede=self.coco, numero="1.1", tamanho="P1", valor=400, cliente=self.cli,
+                                      anexo_pagamento="c/x.pdf", dia_vencimento=10, alugado_em=date(2026, 9, 1))
+        Contrato.objects.create(box=self.box, cliente=self.cli, tamanho="P1", valor=400, dia_vencimento=10,
+                                inicio=date(2026, 9, 1))
+        self.livre = Box.objects.create(sede=self.coco, numero="2", tamanho="P1", valor=400)
+
+    @mock.patch("boxes.cobranca.hoje", return_value=date(2026, 11, 14))
+    def test_agenda_avisa_e_aplica_no_mes(self, hoje):
+        cobranca.garantir_mensalidades()
+        r = self.client.post("/api/reajustes/previa/", {"boxes": [self.box.id], "modo": "percentual",
+                                                         "percentual": "10", "vigencia": "2026-12"}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(str(r.data["boxes"][0]["valor_novo"]), "440.00")
+        self.assertEqual(Reajuste.objects.count(), 0)
+        r = self.client.post("/api/reajustes/", {"boxes": [self.box.id], "modo": "percentual", "percentual": "10",
+                                                  "vigencia": "2026-12", "mensagem": "Reajuste anual."}, format="json")
+        self.assertEqual(r.status_code, 201, r.data)
+        dados = r.data[0]
+        self.assertEqual((dados["situacao"], dados["percentual"]), ("agendado", 10.0))
+        self.assertIsNotNone(dados["email_enviado_em"])
+        self.assertIn("R$ 440,00", dados["whatsapp_texto"])
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("R$ 400,00", mail.outbox[0].body)
+        self.assertIn("dezembro de 2026", mail.outbox[0].body)
+        self.assertIn("10/12/2026", mail.outbox[0].body)
+        # ainda não vale: novembro continua 400
+        self.box.refresh_from_db()
+        self.assertEqual(self.box.valor, 400)
+        # chegou dezembro: aplica sozinho
+        hoje.return_value = date(2026, 12, 2)
+        cobranca.garantir_mensalidades()
+        self.box.refresh_from_db()
+        self.assertEqual(self.box.valor, Decimal("440.00"))
+        self.assertEqual(Mensalidade.objects.get(box=self.box, competencia=date(2026, 12, 1)).valor, Decimal("440.00"))
+        self.assertEqual(Mensalidade.objects.get(box=self.box, competencia=date(2026, 11, 1)).valor, 400)
+        self.assertEqual(Contrato.objects.get(box=self.box).valor, Decimal("440.00"))
+        self.assertEqual(Reajuste.objects.get().situacao, "aplicado")
+
+    @mock.patch("boxes.cobranca.hoje", return_value=date(2026, 11, 14))
+    def test_mes_atual_aplica_na_hora_e_validacoes(self, _):
+        cobranca.garantir_mensalidades()
+        r = self.client.post("/api/reajustes/", {"boxes": [self.box.id, self.livre.id], "modo": "valor",
+                                                  "valor": "450", "vigencia": "2026-11"}, format="json")
+        self.assertIn("está livre", str(r.data["boxes"]))
+        r = self.client.post("/api/reajustes/", {"boxes": [self.box.id], "modo": "valor", "valor": "450",
+                                                  "vigencia": "2026-10"}, format="json")
+        self.assertIn("já passou", str(r.data["vigencia"]))
+        r = self.client.post("/api/reajustes/", {"boxes": [self.box.id], "modo": "valor", "valor": "450",
+                                                  "vigencia": "2026-11", "enviar_email": False}, format="json")
+        self.assertEqual(r.data[0]["situacao"], "aplicado")
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(Mensalidade.objects.get(box=self.box, competencia=date(2026, 11, 1)).valor, Decimal("450.00"))
+        # cancelar um agendado; funcionário não pode reajustar
+        r = self.client.post("/api/reajustes/", {"boxes": [self.box.id], "modo": "valor", "valor": "500",
+                                                  "vigencia": "2027-01", "enviar_email": False}, format="json")
+        rid = r.data[0]["id"]
+        r = self.client.post("/api/reajustes/", {"boxes": [self.box.id], "modo": "valor", "valor": "600",
+                                                  "vigencia": "2027-02"}, format="json")
+        self.assertIn("já tem um reajuste agendado", str(r.data["boxes"]))
+        self.assertEqual(self.client.post(f"/api/reajustes/{rid}/cancelar/").data["situacao"], "cancelado")
+        ana = User.objects.create_user("52998224725")
+        Funcionario.objects.create(usuario=ana, nome="Ana", cpf="52998224725", sede=self.coco)
+        self.client.force_authenticate(ana)
+        self.assertEqual(self.client.get("/api/reajustes/").status_code, 403)
+
+    @mock.patch("boxes.cobranca.hoje", return_value=date(2026, 11, 14))
+    def test_box_liberado_antes_cancela_reajuste(self, hoje):
+        self.client.post("/api/reajustes/", {"boxes": [self.box.id], "modo": "valor", "valor": "450",
+                                              "vigencia": "2026-12", "enviar_email": False}, format="json")
+        self.client.post(f"/api/boxes/{self.box.id}/liberar/")
+        hoje.return_value = date(2026, 12, 2)
+        cobranca.garantir_mensalidades()
+        self.assertEqual(Reajuste.objects.get().situacao, "cancelado")
+        self.box.refresh_from_db()
+        self.assertEqual(self.box.valor, 400)
+
+    @mock.patch("boxes.cobranca.hoje", return_value=date(2026, 11, 14))
+    def test_cliente_sem_email(self, _):
+        Cliente.objects.filter(pk=self.cli.pk).update(email="")
+        r = self.client.post("/api/reajustes/", {"boxes": [self.box.id], "modo": "valor", "valor": "450",
+                                                  "vigencia": "2026-12"}, format="json")
+        self.assertEqual(r.data[0]["email_erro"], "Cliente sem e-mail cadastrado.")
