@@ -20,7 +20,7 @@ pip install -r requirements.txt
 createdb newbox
 cp .env.example .env   # e preencha
 python manage.py migrate
-python manage.py createsuperuser   # use o CPF (só números) como "Username"
+python manage.py criar_admin       # pergunta nome, CPF, e-mail e senha do administrador
 python manage.py runserver
 ```
 

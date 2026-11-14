@@ -1539,3 +1539,20 @@ class RestaurarBackupTests(APITransactionTestCase):
         self.assertFalse(Interessado.objects.exists())
         self.assertTrue(User.objects.filter(username="52998224725").exists())
 
+
+
+class CriarAdminTests(APITestCase):
+    def test_cria_admin_que_entra_com_cpf(self):
+        respostas = iter(["Eden", "123", "529.982.247-25", "eden@x.com"])
+        senhas = iter(["curta", "curta", "Senha#Forte2026", "outra", "Senha#Forte2026", "Senha#Forte2026"])
+        with mock.patch("builtins.input", lambda _: next(respostas)), \
+                mock.patch("boxes.management.commands.criar_admin.getpass", lambda _: next(senhas)):
+            saida = StringIO()
+            call_command("criar_admin", stdout=saida)
+        self.assertIn("CPF inválido", saida.getvalue())
+        self.assertIn("não são iguais", saida.getvalue())
+        u = User.objects.get(username="52998224725")
+        self.assertTrue(u.is_staff and u.is_superuser)
+        r = self.client.post("/api/auth/login/", {"cpf": "529.982.247-25", "senha": "Senha#Forte2026"})
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertTrue(r.data["admin"])
